@@ -1,0 +1,28 @@
+{
+  "name": "beesoftware-backend",
+  "version": "1.0.0",
+  "description": "Backend API para BeeSoftware - Sistema de gestión de partes",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "prod": "NODE_ENV=production node src/index.js"
+  },
+  "keywords": ["beesoftware", "api", "partes", "mysql"],
+  "author": "Marcos - BeeSoftware",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.22.1",
+    "mysql2": "^3.15.3",
+    "nodemailer": "^6.9.4"
+  }
+}

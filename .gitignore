@@ -1,0 +1,105 @@
+# ============================================
+# BEESOFTWARE - GITIGNORE
+# ============================================
+
+# ============================================
+# ARCHIVOS DE ENTORNO (¡NUNCA SUBIR!)
+# ============================================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ============================================
+# NODE MODULES
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============================================
+# BUILDS DE FRONTEND
+# ============================================
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.rolldown/
+
+# ============================================
+# ARCHIVOS DE EDITOR
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================
+# LOGS
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ============================================
+# COVERAGE Y TESTS
+# ============================================
+coverage/
+*.lcov
+.nyc_output/
+
+# ============================================
+# ARCHIVOS TEMPORALES
+# ============================================
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# ============================================
+# ARCHIVOS DE SISTEMA
+# ============================================
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Spotlight-V100
+.Trashes
+
+# ============================================
+# PM2 (Gestor de procesos)
+# ============================================
+.pm2/
+ecosystem.config.js
+
+# ============================================
+# BACKUPS DE BASE DE DATOS
+# ============================================
+*.sql
+*.dump
+backups/
+
+# ============================================
+# CERTIFICADOS SSL (si generas localmente)
+# ============================================
+*.pem
+*.key
+*.crt
+*.csr
+
+# ============================================
+# ARCHIVOS SUBIDOS POR USUARIOS
+# ============================================
+uploads/
+public/uploads/
+
+# ============================================
+# MANTENER ESTAS CARPETAS VACÍAS
+# ============================================
+!.gitkeep
