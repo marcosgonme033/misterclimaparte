@@ -46,3 +46,12 @@
 #root {
   min-height: 100vh;
 }
+.brand-image {
+  width: 48px;   /* ajusta si hace falta */
+  height: 48px;
+  object-fit: contain;
+}
+.auth-card .auth-header {
+  margin-bottom: 20px;
+}
+
