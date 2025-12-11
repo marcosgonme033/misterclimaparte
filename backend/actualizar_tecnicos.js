@@ -1,13 +1,14 @@
 // Script para actualizar técnicos directamente en MySQL
 const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 async function actualizarTecnicos() {
   const connection = await mysql.createConnection({
-    host: '204.93.189.82',
-    port: 3306,
-    user: 'ysqytyxn_usrMarcos',
-    password: 'c2GU[1oKC+%oY8$B',
-    database: 'ysqytyxn_ddbbMrClimaPartes'
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'beesoftware'
   });
 
   try {

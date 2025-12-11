@@ -6,50 +6,22 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 const config = require('./config/env');                  // Config centralizada (.env)
-const { pool, testConnection } = require('./config/db'); // Conexión MySQL desde config
+const { pool, testConnection, isMysqlAvailable } = require('./config/db'); // Conexión MySQL desde config
 
 // Rutas
 const partesRoutes = require('./routes/partes.routes');
 
 const app = express();
 const PORT = config.port || 5000;
-const HOST = process.env.HOST || '0.0.0.0'; // Escuchar en todas las interfaces
+const HOST = '0.0.0.0';
 
-// ============================================
-// CONFIGURACIÓN DE CORS PARA PRODUCCIÓN
-// ============================================
-const allowedOrigins = [
-  'https://misterclima.es',
-  'https://misterclima.es/partes',
-  'https://www.misterclima.es',
-  'https://www.misterclima.es/partes',
-  'http://localhost:5173',  // Para desarrollo local
-  'http://localhost:5174',  // Backup de desarrollo
-];
-
-// Si hay FRONTEND_URL en .env, añadirla también
-if (config.frontendUrl && !allowedOrigins.includes(config.frontendUrl)) {
-  allowedOrigins.push(config.frontendUrl);
-}
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Permitir requests sin origin (como mobile apps, Postman, curl)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`⚠️ CORS bloqueado para origen: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-user'],
-  })
-);
+// CORS simple para desarrollo
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user'],
+}));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -117,7 +89,7 @@ async function sendRecoveryEmail(to, code) {
     return { previewUrl: null };
   }
 
-  const from = process.env.FROM_EMAIL || 'no-reply@misterclima.es';
+  const from = process.env.FROM_EMAIL || 'no-reply@beesoftware.local';
   const subject = 'BeeSoftware - Código de recuperación de contraseña';
   const text = `Tu código de recuperación es: ${code}`;
   const html = `<p>Tu código de recuperación es: <strong>${code}</strong></p><p>Si no has solicitado este código, ignora este email.</p>`;
@@ -161,8 +133,6 @@ app.get('/health', (req, res) => {
 // ==========================
 // HEALTH CHECK DE BASE DE DATOS
 // ==========================
-const { testQuery } = require('./config/db');
-
 app.get('/health/db', async (req, res) => {
   try {
     const startTime = Date.now();
@@ -382,7 +352,35 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    // Buscar usuario en la base de datos (case-sensitive)
+    // Si MySQL no está disponible, usar usuarios en memoria
+    if (!isMysqlAvailable()) {
+      const memUser = USERS.find(
+        u => u.username === username && u.password === password
+      );
+      
+      if (!memUser) {
+        return res.status(401).json({
+          ok: false,
+          message: 'Credenciales incorrectas',
+        });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        message: 'Login correcto (modo desarrollo - sin MySQL)',
+        data: {
+          user: {
+            id: memUser.id,
+            username: memUser.username,
+            name: memUser.name,
+            role: memUser.role,
+          },
+          token: FAKE_TOKEN,
+        },
+      });
+    }
+
+    // Intentar con MySQL si está disponible
     const [rows] = await pool.query(
       'SELECT id, username, password, name, role FROM usuarios WHERE username = ? LIMIT 1',
       [username]
@@ -418,11 +416,32 @@ app.post('/api/auth/login', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('❌ Error en /api/auth/login:', error.message);
+    console.error('❌ Error en /api/auth/login:', error);
+    
+    // Si hay error de MySQL, intentar con usuarios en memoria como fallback
+    const memUser = USERS.find(
+      u => u.username === req.body.username && u.password === req.body.password
+    );
+    
+    if (memUser) {
+      return res.status(200).json({
+        ok: true,
+        message: 'Login correcto (fallback a usuarios en memoria)',
+        data: {
+          user: {
+            id: memUser.id,
+            username: memUser.username,
+            name: memUser.name,
+            role: memUser.role,
+          },
+          token: FAKE_TOKEN,
+        },
+      });
+    }
+    
     return res.status(500).json({
       ok: false,
-      message: 'Error interno en el servidor',
-      error: error.message,
+      message: 'Error de conexión con la base de datos',
     });
   }
 });
@@ -702,12 +721,11 @@ process.on('unhandledRejection', (reason, promise) => {
 const server = app.listen(PORT, HOST, () => {
   const addr = server.address();
   console.log('============================================');
-  console.log('🚀 API BeeSoftware - PRODUCCIÓN');
+  console.log('🚀 BeeSoftware API - Desarrollo Local');
   console.log('============================================');
-  console.log(`✅ Servidor escuchando en ${HOST}:${PORT}`);
-  console.log(`📡 Dirección completa:`, addr);
+  console.log(`✅ Servidor corriendo en ${HOST}:${PORT}`);
   console.log(`🌍 Entorno: ${config.env}`);
-  console.log(`🔗 CORS habilitado para:`, allowedOrigins);
+  console.log(`🔗 CORS: Permitiendo todos los orígenes (desarrollo)`);
   console.log('============================================');
   console.log('🔍 Inicializando subsistemas...');
 
