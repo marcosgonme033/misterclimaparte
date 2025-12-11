@@ -1,6 +1,7 @@
 // BeeSoftware/frontend/src/App.jsx
 import { useState } from 'react';
 import PartesBoard from './PartesBoard';
+import logoLogin from './assets/WhatsApp Image 2025-12-11 at 12.38.14.jpeg';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -98,9 +99,15 @@ function App() {
         <div className="auth-card">
           <header className="auth-header">
             <div className="auth-logo-row">
-              <div className="brand-logo">B</div>
+              <div className="brand-logo">
+  <img
+    src={logoLogin}
+    alt="Logo"
+    style={{ width: '48px', height: '48px', objectFit: 'contain' }}
+  />
+</div>
               <div className="auth-header-text">
-                <h2>Inicia sesión en BeeSoftwareee</h2>
+                <h2>Inicia sesión en Mr. Clima / Partes</h2>
               </div>
             </div>
           </header>
@@ -162,7 +169,7 @@ function App() {
                   className="password-toggle"
                   onClick={() => setShowLoginPassword((prev) => !prev)}
                 >
-                  {showLoginPassword ? 'Ocultar' : 'Mostrar'}
+                  {showLoginPassword ? 'Ocultarr' : 'Mostrar'}
                 </button>
               </div>
               <input
