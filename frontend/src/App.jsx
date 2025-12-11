@@ -225,7 +225,7 @@ function App() {
             </div>
           )}
 
-          <form className="auth-form" onSubmit={handleSubmitLogin} noValidate>
+          <form className="auth-form" onSubmit={handleSubmitLogin} noValidate style={{ marginTop: '2rem' }}>
             <div className="field">
               <label htmlFor="login-username" className="field-label">
                 Usuario
