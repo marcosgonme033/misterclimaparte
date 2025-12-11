@@ -1,51 +1,38 @@
 name: Deploy a cPanel por FTP
-
 on:
   push:
     branches:
-      - main        # Cambia a 'master' u otra rama si usas otra
+      - main
 
 jobs:
   ftp-deploy:
-    name: Subir archivos por FTP a cPanel
+    name: Build y Deploy a cPanel
     runs-on: ubuntu-latest
-
+    
     steps:
-      # 1. Obtiene el código del repo
+      # 1. Checkout del repositorio
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      # 2. (Opcional) Si tu proyecto necesita build (npm run build, mvn package, etc.)
-      #    Aquí metes el build de tu frontend/backend.
-      #    Ejemplos comentados, descomenta y ajusta si lo necesitas.
-      #
-      # - name: Configurar Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '20'
-      #
-      # - name: Instalar dependencias frontend
-      #   run: |
-      #     cd frontend
-      #     npm install
-      #
-      # - name: Build frontend
-      #   run: |
-      #     cd frontend
-      #     npm run build
-      #
-      # Si tienes backend con Node:
-      # - name: Instalar dependencias backend
-      #   run: |
-      #     cd backend
-      #     npm install
-      #
-      # IMPORTANTE:
-      # En el paso de deploy, ajusta 'local-dir' a la carpeta que quieres subir:
-      # por ejemplo 'frontend/dist', 'build', 'public_html', etc.
+      # 2. Configurar Node.js
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      # 3. Subir por FTP a cPanel
-      - name: Deploy por FTP a cPanel
+      # 3. Build del frontend
+      - name: Instalar dependencias frontend
+        run: |
+          cd frontend
+          npm install
+
+      - name: Build frontend con Vite
+        run: |
+          cd frontend
+          npm run build
+
+      # 4. Deploy frontend (carpeta dist)
+      - name: Deploy frontend por FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -53,9 +40,24 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftp
           port: 21
-          # Carpeta local que quieres subir (ajústala a tu caso)
-          local-dir: ./        # Por defecto todo el repo; cámbialo si solo quieres /dist, /build, etc.
-          # Carpeta remota en tu hosting. Suele ser algo tipo /public_html o /public_html/miApp
-          server-dir: /public_html/
-          # Opcional: si quieres limpiar en el servidor los archivos que ya no existen en el repo
+          local-dir: ./frontend/dist/
+          server-dir: /misterclima.es/partes/
           dangerous-clean-slate: false
+
+      # 5. Deploy backend
+      - name: Deploy backend por FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./backend/
+          server-dir: ./
+          dangerous-clean-slate: false
+          exclude: |
+            node_modules/**
+            .env
+            .git/**
+            .gitignore
