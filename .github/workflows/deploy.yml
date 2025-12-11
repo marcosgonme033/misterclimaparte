@@ -54,7 +54,7 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./backend/
-          server-dir: /nodejs-apps/backend/
+          server-dir: ./
           dangerous-clean-slate: false
           exclude: |
             node_modules/**
