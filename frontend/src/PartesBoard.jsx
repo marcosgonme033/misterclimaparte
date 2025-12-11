@@ -669,7 +669,6 @@ function PartesBoard({ user }) {
             />
           </div>
 
-          {/* Filtro por técnico - SOLO ADMIN */}
           {user.role === 'admin' && !showNewParteForm && (
             <div style={{ minWidth: '200px' }}>
               <select
@@ -806,7 +805,7 @@ function PartesBoard({ user }) {
 
                 <div className="field">
                   <label htmlFor="cliente_email" className="field-label">
-                    Email Cliente
+                    Email Clientess
                   </label>
                   <input
                     id="cliente_email"

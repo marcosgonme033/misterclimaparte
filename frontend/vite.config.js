@@ -4,15 +4,14 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/partes/', // Subcarpeta en producción
+  base: '/', // Ruta base simple para desarrollo
   server: {
     port: 5173,
-    strictPort: true, // Fallar si el puerto no está disponible
+    strictPort: true,
   },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    // Generar source maps para debugging en producción (opcional)
     sourcemap: false,
   },
 })
