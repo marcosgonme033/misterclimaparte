@@ -715,6 +715,15 @@ body {
   letter-spacing: 0.05em;
 }
 
+/* Población en la cabecera */
+.kanban-card-location-header {
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  color: #ffffff !important;
+  margin-left: 0.5rem;
+}
+
 /* Nombre del técnico (mismo estilo que el número, siempre blanco) */
 .kanban-card-tech {
   font-weight: 700;
@@ -955,6 +964,10 @@ body {
     font-size: 0.85rem;
   }
 
+  .kanban-card-location-header {
+    font-size: 0.85rem;
+  }
+
   .kanban-card-tech {
     font-size: 0.85rem;
   }
@@ -1029,6 +1042,10 @@ body {
   }
 
   .kanban-card-number {
+    font-size: 0.8rem;
+  }
+
+  .kanban-card-location-header {
     font-size: 0.8rem;
   }
 

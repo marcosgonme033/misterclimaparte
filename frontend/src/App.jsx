@@ -1,9 +1,13 @@
 // BeeSoftware/frontend/src/App.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PartesBoard from './PartesBoard';
 import logoLogin from './assets/WhatsApp Image 2025-12-11 at 12.38.14.jpeg';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// Constantes para la gestión de sesión
+const SESSION_STORAGE_KEY = 'beesoftware_session';
+const SESSION_DURATION = 4 * 60 * 60 * 1000; // 4 horas en milisegundos
 
 function App() {
   // Estado LOGIN
@@ -20,6 +24,43 @@ function App() {
   const [globalError, setGlobalError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [user, setUser] = useState(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  // Restaurar sesión al cargar la aplicación
+  useEffect(() => {
+    const restoreSession = () => {
+      try {
+        const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+        
+        if (!storedSession) {
+          setIsCheckingSession(false);
+          return;
+        }
+
+        const session = JSON.parse(storedSession);
+        const now = Date.now();
+
+        // Verificar si la sesión ha expirado
+        if (now >= session.expiresAt) {
+          console.log('⏰ Sesión expirada, limpiando...');
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+          setIsCheckingSession(false);
+          return;
+        }
+
+        // Sesión válida, restaurar usuario
+        console.log('✅ Sesión válida restaurada');
+        setUser(session.user);
+      } catch (error) {
+        console.error('❌ Error al restaurar sesión:', error);
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      } finally {
+        setIsCheckingSession(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
 
   const handleChangeLogin = (field, value) => {
     setLoginForm((prev) => ({ ...prev, [field]: value }));
@@ -74,9 +115,23 @@ function App() {
         return;
       }
 
-      setUser(data.data?.user || null);
+      const userData = data.data?.user || null;
+      setUser(userData);
       setStatusMessage('Has iniciado sesión correctamente.');
       setGlobalError('');
+
+      // Guardar sesión en localStorage
+      if (userData) {
+        const session = {
+          user: userData,
+          token: data.data?.token || null, // Si el backend devuelve token
+          expiresAt: Date.now() + SESSION_DURATION,
+          createdAt: Date.now()
+        };
+        
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+        console.log('💾 Sesión guardada en localStorage (expira en 4 horas)');
+      }
     } catch (error) {
       console.error('Error en login:', error);
       setGlobalError('Error de conexión con el servidor. Inténtalo de nuevo.');
@@ -85,9 +140,39 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    // Limpiar sesión del localStorage
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    console.log('🚪 Sesión cerrada y limpiada del localStorage');
+    
+    // Resetear estado de usuario
+    setUser(null);
+    setLoginForm({
+      username: '',
+      password: '',
+      rememberMe: true,
+    });
+    setGlobalError('');
+    setStatusMessage('');
+  };
+
+  // Mostrar loading mientras se verifica la sesión
+  if (isCheckingSession) {
+    return (
+      <div className="auth-page">
+        <div className="auth-backdrop" />
+        <div className="auth-shell">
+          <div className="auth-card" style={{ textAlign: 'center', padding: '3rem' }}>
+            <p style={{ color: '#9ca3af', margin: 0 }}>Verificando sesión...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Si el usuario está logueado, mostrar el tablero de partes
   if (user) {
-    return <PartesBoard user={user} />;
+    return <PartesBoard user={user} onLogout={handleLogout} />;
   }
 
   // Si no hay usuario, mostrar el formulario de login

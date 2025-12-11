@@ -12,7 +12,7 @@ const COLUMNS = [
   { id: 'reparado', title: 'Reparado', color: '#34d399' },
 ];
 
-function PartesBoard({ user }) {
+function PartesBoard({ user, onLogout }) {
   const [partes, setPartes] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +48,20 @@ function PartesBoard({ user }) {
     loadTecnicos();
     loadPartes();
   }, [user]);
+
+  // Autorefresco de partes cada 60 segundos
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      console.log('🔄 Actualizando partes automáticamente...');
+      loadPartes();
+    }, 60000); // 60 segundos
+
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => {
+      console.log('🧹 Limpiando intervalo de autorefresco');
+      clearInterval(intervalId);
+    };
+  }, [user]); // Dependencia de user para recrear el intervalo si cambia
 
   // Helper para headers de autenticación
   const getAuthHeaders = () => ({
@@ -699,6 +713,20 @@ function PartesBoard({ user }) {
               </select>
             </div>
           )}
+
+          {/* Botón de cerrar sesión */}
+          <button
+            onClick={onLogout}
+            className="btn"
+            style={{
+              padding: '0.6rem 1rem',
+              fontSize: '0.9rem',
+              whiteSpace: 'nowrap',
+            }}
+            title="Cerrar sesión"
+          >
+            🚪 Salir
+          </button>
         </header>
 
         {error && (
@@ -935,6 +963,9 @@ function PartesBoard({ user }) {
                                     <span className="kanban-card-number" style={{ color: column.color }}>
                                       #{parte.numero_parte}
                                     </span>
+                                    <span className="kanban-card-location-header">
+                                      📍 {parte.poblacion}
+                                    </span>
                                     {parte.nombre_tecnico && (
                                       <span className="kanban-card-tech">
                                         👤 {parte.nombre_tecnico}
@@ -944,9 +975,6 @@ function PartesBoard({ user }) {
 
                                   <div className="kanban-card-body">
                                     <h4>{parte.aparato}</h4>
-                                    <p className="kanban-card-location">
-                                      <span>📍</span> {parte.poblacion}
-                                    </p>
                                     {parte.observaciones && (
                                       <p className="kanban-card-notes">{parte.observaciones}</p>
                                     )}
