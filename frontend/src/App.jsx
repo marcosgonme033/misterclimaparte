@@ -100,7 +100,7 @@ function App() {
             <div className="auth-logo-row">
               <div className="brand-logo">B</div>
               <div className="auth-header-text">
-                <h2>Inicia sesión en BeeSoftware</h2>
+                <h2>Inicia sesión en BeeSoftwareee</h2>
               </div>
             </div>
           </header>
