@@ -1,7 +1,7 @@
 // BeeSoftware/frontend/src/App.jsx
 import { useState, useEffect } from 'react';
 import PartesBoard from './PartesBoard';
-import logoLogin from './assets/WhatsApp Image 2025-12-11 at 12.38.14.jpeg';
+import logoLogin from './assets/logo-beesoftware.jpeg';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 

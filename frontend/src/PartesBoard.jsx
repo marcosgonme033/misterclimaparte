@@ -1,6 +1,8 @@
 // BeeSoftware/frontend/src/PartesBoard.jsx
 import { useState, useEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import logoApp from './assets/logo-beesoftware.jpeg';
+
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -23,6 +25,17 @@ function PartesBoard({ user, onLogout }) {
   const [formLoading, setFormLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(''); // Ahora es "searchQuery" en lugar de "searchNumeroParte"
   const [selectedTecnico, setSelectedTecnico] = useState(''); // Filtro por técnico (solo admin)
+  
+  // Estado para columnas colapsadas/expandidas
+  const [collapsedColumns, setCollapsedColumns] = useState({});
+
+  // Función para alternar colapsar/expandir columna
+  const toggleColumn = (columnId) => {
+    setCollapsedColumns(prev => ({
+      ...prev,
+      [columnId]: !prev[columnId]
+    }));
+  };
 
   // Estado del formulario
   const [formData, setFormData] = useState({
@@ -661,7 +674,9 @@ function PartesBoard({ user, onLogout }) {
         {/* Header */}
         <header className="kanban-header">
           <div className="auth-logo-row">
-            <div className="brand-logo">B</div>
+            <div className="brand-logo">
+              <img src={logoApp} alt="Logo" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
+            </div>
             <div className="auth-header-text">
               <h2>Partes</h2>
               <p>
@@ -942,11 +957,21 @@ function PartesBoard({ user, onLogout }) {
               <DragDropContext onDragEnd={handleDragEnd}>
                 {COLUMNS.map((column) => (
                   <div key={column.id} className="kanban-column">
-                    <div className="kanban-column-header" style={{ borderColor: column.color }}>
-                      <h3 style={{ color: column.color }}>{column.title}</h3>
+                    <div 
+                      className="kanban-column-header" 
+                      style={{ borderColor: column.color, cursor: 'pointer' }}
+                      onClick={() => toggleColumn(column.id)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                        <span style={{ fontSize: '1rem', color: column.color }}>
+                          {collapsedColumns[column.id] ? '▶' : '▼'}
+                        </span>
+                        <h3 style={{ color: column.color, margin: 0 }}>{column.title}</h3>
+                      </div>
                       <span className="kanban-column-count">{getPartesByColumn(column.id).length}</span>
                     </div>
 
+                    {!collapsedColumns[column.id] && (
                     <Droppable droppableId={column.id}>
                       {(provided, snapshot) => (
                         <div
@@ -1014,6 +1039,7 @@ function PartesBoard({ user, onLogout }) {
                         </div>
                       )}
                     </Droppable>
+                    )}
                   </div>
                 ))}
               </DragDropContext>
