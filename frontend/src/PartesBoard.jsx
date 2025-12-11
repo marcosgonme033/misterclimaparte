@@ -805,7 +805,7 @@ function PartesBoard({ user }) {
 
                 <div className="field">
                   <label htmlFor="cliente_email" className="field-label">
-                    Email Clientess
+                    Email CLIENTEEE
                   </label>
                   <input
                     id="cliente_email"
