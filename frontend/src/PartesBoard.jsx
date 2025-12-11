@@ -966,7 +966,8 @@ function PartesBoard({ user, onLogout }) {
                                     <span className="kanban-card-location-header">
                                       📍 {parte.poblacion}
                                     </span>
-                                    {parte.nombre_tecnico && (
+                                    {/* Mostrar nombre del técnico SOLO si es admin */}
+                                    {user.role === 'admin' && parte.nombre_tecnico && (
                                       <span className="kanban-card-tech">
                                         👤 {parte.nombre_tecnico}
                                       </span>

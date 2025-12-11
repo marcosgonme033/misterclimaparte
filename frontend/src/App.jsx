@@ -245,18 +245,9 @@ function App() {
             </div>
 
             <div className="field">
-              <div className="field-label-row">
-                <label htmlFor="login-password" className="field-label">
-                  Contraseña
-                </label>
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowLoginPassword((prev) => !prev)}
-                >
-                  {showLoginPassword ? 'Ocultarr' : 'Mostrar'}
-                </button>
-              </div>
+              <label htmlFor="login-password" className="field-label">
+                Contraseña
+              </label>
               <input
                 id="login-password"
                 type={showLoginPassword ? 'text' : 'password'}
@@ -269,6 +260,23 @@ function App() {
               {fieldErrors.password && (
                 <p className="field-error">{fieldErrors.password}</p>
               )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowLoginPassword((prev) => !prev)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    padding: 0,
+                    fontSize: '0.74rem',
+                    cursor: 'pointer',
+                    color: '#9ca3af'
+                  }}
+                >
+                  {showLoginPassword ? 'Ocultarr' : 'Mostrar'}
+                </button>
+              </div>
             </div>
 
             <div className="field-row">
