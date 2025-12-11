@@ -34,6 +34,8 @@ function PartesBoard({ user, onLogout }) {
     informe_tecnico: '',
     cliente_email: '',
     nombre_tecnico: '', // Para asignación de técnico (solo admin)
+    dni_cliente: '',
+    acepta_proteccion_datos: false,
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -480,6 +482,8 @@ function PartesBoard({ user, onLogout }) {
         informe_tecnico: '',
         cliente_email: '',
         nombre_tecnico: '',
+        dni_cliente: '',
+        acepta_proteccion_datos: false,
       });
       setSelectedImages([]);
       setImagePreviews([]);
@@ -505,6 +509,8 @@ function PartesBoard({ user, onLogout }) {
       informe_tecnico: '',
       cliente_email: '',
       nombre_tecnico: '',
+      dni_cliente: '',
+      acepta_proteccion_datos: false,
     });
     setFormErrors({});
     setSelectedImages([]);
@@ -523,6 +529,8 @@ function PartesBoard({ user, onLogout }) {
       informe_tecnico: parte.informe_tecnico || '',
       cliente_email: parte.cliente_email || '',
       nombre_tecnico: parte.nombre_tecnico || '',
+      dni_cliente: parte.dni_cliente || '',
+      acepta_proteccion_datos: parte.acepta_proteccion_datos || false,
     });
 
     // Cargar imágenes existentes
@@ -586,6 +594,8 @@ function PartesBoard({ user, onLogout }) {
         informe_tecnico: '',
         cliente_email: '',
         nombre_tecnico: '',
+        dni_cliente: '',
+        acepta_proteccion_datos: false,
       });
       setSelectedImages([]);
       setImagePreviews([]);
@@ -630,6 +640,8 @@ function PartesBoard({ user, onLogout }) {
         informe_tecnico: '',
         cliente_email: '',
         nombre_tecnico: '',
+        dni_cliente: '',
+        acepta_proteccion_datos: false,
       });
       setSelectedImages([]);
       setImagePreviews([]);
@@ -1277,6 +1289,34 @@ function PartesBoard({ user, onLogout }) {
                           ))}
                         </div>
                       )}
+                    </div>
+
+                    {/* Campos adicionales para estado "visitado" */}
+                    <div className="field">
+                      <label htmlFor="edit_dni_cliente" className="field-label">
+                        DNI del cliente
+                      </label>
+                      <input
+                        id="edit_dni_cliente"
+                        type="text"
+                        className="input"
+                        value={formData.dni_cliente}
+                        onChange={(e) => handleFormChange('dni_cliente', e.target.value)}
+                        placeholder="Ej. 12345678A"
+                        disabled={selectedParte.estado === 'reparado'}
+                      />
+                    </div>
+
+                    <div className="field">
+                      <label className="checkbox">
+                        <input
+                          type="checkbox"
+                          checked={formData.acepta_proteccion_datos}
+                          onChange={(e) => handleFormChange('acepta_proteccion_datos', e.target.checked)}
+                          disabled={selectedParte.estado === 'reparado'}
+                        />
+                        <span>El cliente declara haber sido informado y acepta la política de protección de datos.</span>
+                      </label>
                     </div>
                   </>
                 )}

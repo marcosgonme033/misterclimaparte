@@ -12,7 +12,8 @@ async function getAllPartes() {
     const [rows] = await pool.query(
       `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
-              fotos_json, firma_base64, cliente_email, estado, orden, created_at, updated_at
+              fotos_json, firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, 
+              estado, orden, created_at, updated_at
        FROM partes
        ORDER BY 
          CASE estado
@@ -42,7 +43,8 @@ async function getPartesByTecnico(nombreTecnico) {
     const [rows] = await pool.query(
       `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
-              fotos_json, firma_base64, cliente_email, estado, orden, created_at, updated_at
+              fotos_json, firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, 
+              estado, orden, created_at, updated_at
        FROM partes
        WHERE nombre_tecnico = ?
        ORDER BY 
@@ -74,7 +76,8 @@ async function getParteById(id) {
     const [rows] = await pool.query(
       `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
-              fotos_json, firma_base64, cliente_email, estado, orden, created_at, updated_at
+              fotos_json, firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, 
+              estado, orden, created_at, updated_at
        FROM partes
        WHERE id = ?
        LIMIT 1`,
@@ -106,6 +109,8 @@ async function createParte(data) {
     fotos_json = null,
     firma_base64 = null,
     cliente_email = null,
+    dni_cliente = null,
+    acepta_proteccion_datos = false,
     estado = 'pendiente',
   } = data;
 
@@ -121,8 +126,8 @@ async function createParte(data) {
       `INSERT INTO partes 
        (numero_parte, aparato, poblacion, nombre_tecnico, observaciones, nota_parte, 
         instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, fotos_json, 
-        firma_base64, cliente_email, estado, orden)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, estado, orden)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         numero_parte,
         aparato,
@@ -136,6 +141,8 @@ async function createParte(data) {
         fotos_json,
         firma_base64,
         cliente_email,
+        dni_cliente,
+        acepta_proteccion_datos,
         estado,
         nuevoOrden,
       ]
@@ -169,6 +176,8 @@ async function updateParte(id, data) {
     fotos_json,
     firma_base64,
     cliente_email,
+    dni_cliente,
+    acepta_proteccion_datos,
     estado,
     orden,
   } = data;
@@ -188,6 +197,8 @@ async function updateParte(id, data) {
          fotos_json = ?,
          firma_base64 = ?,
          cliente_email = ?,
+         dni_cliente = ?,
+         acepta_proteccion_datos = ?,
          estado = COALESCE(?, estado),
          orden = COALESCE(?, orden)
        WHERE id = ?`,
@@ -204,6 +215,8 @@ async function updateParte(id, data) {
         fotos_json,
         firma_base64,
         cliente_email,
+        dni_cliente,
+        acepta_proteccion_datos,
         estado,
         orden,
         id,
