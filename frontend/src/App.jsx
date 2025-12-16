@@ -237,7 +237,7 @@ function App() {
                 className={fieldErrors.username ? 'input input--error' : 'input'}
                 value={loginForm.username}
                 onChange={(e) => handleChangeLogin('username', e.target.value)}
-                placeholder="tu.usuario"
+                placeholder="Usuario"
               />
               {fieldErrors.username && (
                 <p className="field-error">{fieldErrors.username}</p>

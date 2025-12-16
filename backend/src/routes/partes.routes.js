@@ -27,6 +27,9 @@ router.post('/', requireAdmin, partesController.createParte);
 // PUT /api/partes/:id - Actualizar un parte
 router.put('/:id', partesController.updateParte);
 
+// POST /api/partes/:id/enviar-email - Enviar email al cliente
+router.post('/:id/enviar-email', partesController.enviarEmailCliente);
+
 // DELETE /api/partes/:id - Eliminar un parte (solo admin)
 router.delete('/:id', requireAdmin, partesController.deleteParte);
 

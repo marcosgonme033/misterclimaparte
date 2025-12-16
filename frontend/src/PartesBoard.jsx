@@ -57,6 +57,8 @@ function PartesBoard({ user, onLogout }) {
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState(null);
   const [videoRef, setVideoRef] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [currentPhaseTab, setCurrentPhaseTab] = useState('inicial'); // Para navegación de fases
 
   // Cargar partes al montar el componente
   useEffect(() => {
@@ -533,6 +535,7 @@ function PartesBoard({ user, onLogout }) {
 
   const handleOpenEditModal = (parte) => {
     setSelectedParte(parte);
+    setCurrentPhaseTab(parte.estado); // Establecer el tab activo según el estado actual
     setFormData({
       numero_parte: parte.numero_parte,
       aparato: parte.aparato,
@@ -663,6 +666,39 @@ function PartesBoard({ user, onLogout }) {
       setError(err.message);
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleEnviarEmail = async () => {
+    try {
+      setSendingEmail(true);
+      setError('');
+
+      const response = await fetch(`${API_BASE_URL}/api/partes/${selectedParte.id}/enviar-email`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Error al enviar el email');
+      }
+
+      // Mostrar mensaje de éxito
+      alert('✅ Email enviado exitosamente al cliente');
+      
+      // Si hay URL de preview (cuenta de prueba), mostrarla en consola
+      if (data.previewUrl) {
+        console.log('📧 Vista previa del email:', data.previewUrl);
+      }
+
+    } catch (err) {
+      console.error('Error enviando email:', err);
+      setError(err.message);
+      alert('❌ Error al enviar el email: ' + err.message);
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -860,7 +896,7 @@ function PartesBoard({ user, onLogout }) {
 
                 <div className="field">
                   <label htmlFor="cliente_email" className="field-label">
-                    Email CLIENTEEE
+                    Email CLIENTE
                   </label>
                   <input
                     id="cliente_email"
@@ -1067,6 +1103,41 @@ function PartesBoard({ user, onLogout }) {
                 </button>
               </div>
 
+              {/* Mini navegación de fases */}
+              <div style={{ 
+                display: 'flex', 
+                gap: '0.5rem', 
+                marginBottom: '1.5rem',
+                flexWrap: 'wrap',
+                padding: '0.5rem',
+                backgroundColor: 'rgba(31, 41, 55, 0.5)',
+                borderRadius: '0.5rem',
+              }}>
+                {COLUMNS.map((column) => (
+                  <button
+                    key={column.id}
+                    type="button"
+                    onClick={() => setCurrentPhaseTab(column.id)}
+                    disabled={formLoading}
+                    style={{
+                      flex: 1,
+                      minWidth: '120px',
+                      padding: '0.6rem 0.8rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      borderRadius: '0.4rem',
+                      border: currentPhaseTab === column.id ? `2px solid ${column.color}` : '1px solid rgba(148, 163, 184, 0.3)',
+                      backgroundColor: currentPhaseTab === column.id ? `${column.color}15` : 'rgba(31, 41, 55, 0.7)',
+                      color: currentPhaseTab === column.id ? column.color : '#9ca3af',
+                      cursor: formLoading ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {column.title}
+                  </button>
+                ))}
+              </div>
+
               <form className="auth-form" onSubmit={handleUpdateParte} style={{ gap: '1.1rem' }}>
                 {/* Mismo formulario que crear parte pero con ID del parte y botones diferentes */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
@@ -1120,7 +1191,7 @@ function PartesBoard({ user, onLogout }) {
 
                   <div className="field">
                     <label htmlFor="edit_cliente_email" className="field-label">
-                      Email Clienteeee
+                      Email Cliente
                     </label>
                     <input
                       id="edit_cliente_email"
@@ -1150,7 +1221,7 @@ function PartesBoard({ user, onLogout }) {
                 </div>
 
                 {/* Instrucciones técnico (disponible desde 'revisado') */}
-                {['revisado', 'visitado', 'reparado'].includes(selectedParte.estado) && (
+                {['revisado', 'visitado', 'reparado'].includes(currentPhaseTab) && (
                   <div className="field">
                     <label htmlFor="edit_instrucciones_tecnico" className="field-label">
                       Observaciones del técnico
@@ -1169,7 +1240,7 @@ function PartesBoard({ user, onLogout }) {
                 )}
 
                 {/* Informe técnico y fotos (disponible desde 'visitado') */}
-                {['visitado', 'reparado'].includes(selectedParte.estado) && (
+                {['visitado', 'reparado'].includes(currentPhaseTab) && (
                   <>
                     <div className="field">
                       <label htmlFor="edit_informe_tecnico" className="field-label">
@@ -1344,32 +1415,60 @@ function PartesBoard({ user, onLogout }) {
                         <span>El cliente declara haber sido informado y acepta la política de protección de datos.</span>
                       </label>
                     </div>
+
+                    {/* Botón de enviar email - solo si está en visitado o reparado Y tiene email */}
+                    {formData.cliente_email && formData.cliente_email.trim() && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={handleEnviarEmail}
+                          disabled={sendingEmail || formLoading}
+                          className="btn"
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            background: 'rgba(52, 211, 153, 0.1)',
+                            border: '1px solid rgba(52, 211, 153, 0.3)',
+                            color: '#6ee7b7',
+                            cursor: sendingEmail || formLoading ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {sendingEmail ? '📧 Enviando email...' : '✉️ Enviar email al cliente'}
+                        </button>
+                        <p style={{ 
+                          fontSize: '0.85rem', 
+                          color: '#9ca3af', 
+                          marginTop: '0.5rem',
+                          textAlign: 'center',
+                        }}>
+                          Se enviará a: {formData.cliente_email}
+                        </p>
+                      </div>
+                    )}
+                    {!formData.cliente_email && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <p style={{ 
+                          fontSize: '0.85rem', 
+                          color: '#f87171', 
+                          textAlign: 'center',
+                          padding: '0.5rem',
+                          backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                          borderRadius: '0.4rem',
+                          border: '1px solid rgba(248, 113, 113, 0.3)',
+                        }}>
+                          ⚠️ No se puede enviar email: el cliente no tiene email configurado
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
 
                 {/* Botones de acción */}
                 <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                  {user.role === 'admin' && (
-                    <button
-                      type="button"
-                      onClick={handleDeleteParte}
-                      disabled={formLoading}
-                      className="btn"
-                      style={{
-                        flex: 1,
-                        padding: '0.75rem',
-                        fontSize: '0.9rem',
-                        fontWeight: 600,
-                        background: 'rgba(248, 113, 113, 0.1)',
-                        border: '1px solid rgba(248, 113, 113, 0.3)',
-                        color: '#fecaca',
-                      }}
-                    >
-                      🗑️ Eliminar
-                    </button>
-                  )}
                   {selectedParte.estado !== 'reparado' && (
-                    <button type="submit" disabled={formLoading} className="primary-btn" style={{ flex: 2, marginTop: 0 }}>
+                    <button type="submit" disabled={formLoading} className="primary-btn" style={{ flex: 1, marginTop: 0 }}>
                       {formLoading ? 'Actualizando...' : 'Guardar Cambios'}
                     </button>
                   )}

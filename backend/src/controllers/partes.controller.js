@@ -3,9 +3,48 @@
 
 const partesRepository = require('../repositories/partes.repository');
 const { pool } = require('../config/db');
+const nodemailer = require('nodemailer');
 
 // Estados válidos para el tablero Kanban
 const ESTADOS_VALIDOS = ['inicial', 'revisado', 'visitado', 'reparado'];
+
+// Configurar el transporter de email (reutilizar config del index.js)
+let mailTransporter = null;
+
+async function initMailTransporter() {
+  if (mailTransporter) return mailTransporter;
+
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    mailTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+    return mailTransporter;
+  }
+
+  // Fallback a cuenta de prueba
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    mailTransporter = nodemailer.createTransport({
+      host: testAccount.smtp.host,
+      port: testAccount.smtp.port,
+      secure: testAccount.smtp.secure,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+    return mailTransporter;
+  } catch (err) {
+    console.error('❌ No se pudo inicializar el transporter de email:', err.message);
+    return null;
+  }
+}
 
 /**
  * Obtiene partes según el rol del usuario
@@ -525,6 +564,207 @@ async function updatePartesOrden(req, res) {
   }
 }
 
+/**
+ * Envía un email al cliente con los datos del parte
+ * Solo disponible para partes en estado 'visitado' o 'reparado'
+ * Requiere que el parte tenga un email de cliente válido
+ */
+async function enviarEmailCliente(req, res) {
+  try {
+    const { id } = req.params;
+    const { role, name, username } = req.user || {};
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        ok: false,
+        message: 'ID de parte inválido',
+      });
+    }
+
+    // Obtener el parte
+    const parte = await partesRepository.getParteById(parseInt(id));
+
+    if (!parte) {
+      return res.status(404).json({
+        ok: false,
+        message: 'Parte no encontrado',
+      });
+    }
+
+    // Verificar permisos (admin puede enviar cualquier email, user solo sus partes)
+    if (role !== 'admin') {
+      const tecnicoName = name || username;
+      if (parte.nombre_tecnico !== tecnicoName) {
+        return res.status(403).json({
+          ok: false,
+          message: 'No tienes permiso para enviar email de este parte',
+        });
+      }
+    }
+
+    // Validar que el parte esté en estado 'visitado' o 'reparado'
+    if (!['visitado', 'reparado'].includes(parte.estado)) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Solo se puede enviar email para partes en estado "Visita realizada" o "Reparado"',
+      });
+    }
+
+    // Validar que el parte tenga email de cliente
+    if (!parte.cliente_email || !parte.cliente_email.trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: 'El parte no tiene email de cliente configurado',
+      });
+    }
+
+    // Inicializar el transporter si no existe
+    const transporter = await initMailTransporter();
+    
+    if (!transporter) {
+      return res.status(500).json({
+        ok: false,
+        message: 'Servicio de email no disponible',
+      });
+    }
+
+    // Preparar contenido del email
+    const estadoTexto = parte.estado === 'visitado' ? 'Visita realizada' : 'Reparado';
+    const subject = `Parte #${parte.numero_parte} - ${estadoTexto}`;
+    
+    const htmlBody = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #facc15; color: #1f2937; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
+          .field { margin-bottom: 15px; }
+          .label { font-weight: bold; color: #1f2937; }
+          .value { color: #4b5563; }
+          .footer { margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb; font-size: 0.9em; color: #6b7280; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>BeeSoftware - Resumen de Parte</h1>
+            <h2>Parte #${parte.numero_parte}</h2>
+          </div>
+          <div class="content">
+            <div class="field">
+              <span class="label">Estado:</span>
+              <span class="value">${estadoTexto}</span>
+            </div>
+            <div class="field">
+              <span class="label">Aparato:</span>
+              <span class="value">${parte.aparato || 'N/A'}</span>
+            </div>
+            <div class="field">
+              <span class="label">Población:</span>
+              <span class="value">${parte.poblacion || 'N/A'}</span>
+            </div>
+            <div class="field">
+              <span class="label">Técnico asignado:</span>
+              <span class="value">${parte.nombre_tecnico || 'N/A'}</span>
+            </div>
+            ${parte.observaciones ? `
+            <div class="field">
+              <span class="label">Observaciones:</span>
+              <span class="value">${parte.observaciones}</span>
+            </div>
+            ` : ''}
+            ${parte.instrucciones_tecnico ? `
+            <div class="field">
+              <span class="label">Observaciones del técnico:</span>
+              <span class="value">${parte.instrucciones_tecnico}</span>
+            </div>
+            ` : ''}
+            ${parte.informe_tecnico ? `
+            <div class="field">
+              <span class="label">Informe técnico:</span>
+              <span class="value">${parte.informe_tecnico}</span>
+            </div>
+            ` : ''}
+            ${parte.dni_cliente ? `
+            <div class="field">
+              <span class="label">DNI del cliente:</span>
+              <span class="value">${parte.dni_cliente}</span>
+            </div>
+            ` : ''}
+            <div class="footer">
+              <p>Este es un resumen automático del parte de trabajo realizado.</p>
+              <p>Si tiene alguna duda, por favor contacte con nosotros.</p>
+              <p><strong>BeeSoftware</strong> - Sistema de gestión de partes</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const textBody = `
+BeeSoftware - Resumen de Parte
+
+Parte #${parte.numero_parte}
+Estado: ${estadoTexto}
+
+Detalles del servicio:
+- Aparato: ${parte.aparato || 'N/A'}
+- Población: ${parte.poblacion || 'N/A'}
+- Técnico asignado: ${parte.nombre_tecnico || 'N/A'}
+${parte.observaciones ? `- Observaciones: ${parte.observaciones}` : ''}
+${parte.instrucciones_tecnico ? `- Observaciones del técnico: ${parte.instrucciones_tecnico}` : ''}
+${parte.informe_tecnico ? `- Informe técnico: ${parte.informe_tecnico}` : ''}
+${parte.dni_cliente ? `- DNI del cliente: ${parte.dni_cliente}` : ''}
+
+---
+Este es un resumen automático del parte de trabajo realizado.
+Si tiene alguna duda, por favor contacte con nosotros.
+
+BeeSoftware - Sistema de gestión de partes
+    `.trim();
+
+    // Enviar el email
+    const from = process.env.FROM_EMAIL || 'no-reply@beesoftware.local';
+    const info = await transporter.sendMail({
+      from,
+      to: parte.cliente_email,
+      subject,
+      text: textBody,
+      html: htmlBody,
+    });
+
+    console.log('✅ Email enviado:', info.messageId);
+    
+    // Si es cuenta de prueba, obtener URL de vista previa
+    let previewUrl = null;
+    if (nodemailer.getTestMessageUrl) {
+      previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log('📧 Vista previa del email:', previewUrl);
+      }
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Email enviado exitosamente',
+      messageId: info.messageId,
+      previewUrl: previewUrl,
+    });
+  } catch (error) {
+    console.error('❌ Error en enviarEmailCliente:', error.message);
+    return res.status(500).json({
+      ok: false,
+      message: 'Error al enviar el email',
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   getPartes,
   getParteById,
@@ -533,4 +773,5 @@ module.exports = {
   deleteParte,
   getTecnicos,
   updatePartesOrden,
+  enviarEmailCliente,
 };
