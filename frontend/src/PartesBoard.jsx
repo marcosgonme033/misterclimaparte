@@ -1356,7 +1356,7 @@ function PartesBoard({ user, onLogout }) {
                     {/* Campos adicionales para estado "revisando", "visitas_realizadas" y "ausentes" */}
                     <div className="field">
                       <label htmlFor="edit_dni_cliente" className="field-label">
-                        DNI del cliente
+                        DNI del clienteee
                       </label>
                       <input
                         id="edit_dni_cliente"
