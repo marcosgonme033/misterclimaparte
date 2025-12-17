@@ -72,33 +72,48 @@ async function getPartes(req, res) {
   try {
     const { role, name, username } = req.user || {};
     const { nombre_tecnico } = req.query;
+    
+    // LOGGING PARA DIAGNÓSTICO (controlado por env)
+    const DEBUG_MODE = process.env.DEBUG_PARTES === 'true';
+    
+    if (DEBUG_MODE) {
+      console.log('🔍 [DIAGNÓSTICO getPartes]');
+      console.log('  Usuario logueado:', { username, name, role });
+      console.log('  Filtro técnico:', nombre_tecnico || 'ninguno');
+    }
+
+    let partes = [];
 
     // Si es admin y no se especifica técnico, devolver todos
     if (role === 'admin' && !nombre_tecnico) {
-      const partes = await partesRepository.getAllPartes();
+      partes = await partesRepository.getAllPartes();
       
-      // Log de nombres de técnicos en los partes
-      const tecnicosEnPartes = [...new Set(partes.map(p => p.nombre_tecnico))];
-      console.log('📋 Técnicos asignados en partes:', tecnicosEnPartes);
-      
-      return res.status(200).json({
-        ok: true,
-        data: partes,
-      });
+      if (DEBUG_MODE) {
+        const tecnicosEnPartes = [...new Set(partes.map(p => p.nombre_tecnico))];
+        console.log('  📋 Técnicos en BD:', tecnicosEnPartes);
+      }
     }
-
     // Si es admin y especifica técnico, devolver los de ese técnico
-    if (role === 'admin' && nombre_tecnico) {
-      const partes = await partesRepository.getPartesByTecnico(nombre_tecnico);
-      return res.status(200).json({
-        ok: true,
-        data: partes,
-      });
+    else if (role === 'admin' && nombre_tecnico) {
+      partes = await partesRepository.getPartesByTecnico(nombre_tecnico);
+    }
+    // Si es user, solo devolver sus propios partes
+    else {
+      const tecnicoName = name || username;
+      partes = await partesRepository.getPartesByTecnico(tecnicoName);
     }
 
-    // Si es user, solo devolver sus propios partes
-    const tecnicoName = name || username;
-    const partes = await partesRepository.getPartesByTecnico(tecnicoName);
+    // LOGGING: conteo total y por estado
+    if (DEBUG_MODE) {
+      const countByEstado = partes.reduce((acc, p) => {
+        acc[p.estado] = (acc[p.estado] || 0) + 1;
+        return acc;
+      }, {});
+      
+      console.log('  📊 Total partes devueltos:', partes.length);
+      console.log('  📊 Por estado:', countByEstado);
+      console.log('  Estados presentes:', Object.keys(countByEstado));
+    }
 
     return res.status(200).json({
       ok: true,
@@ -261,7 +276,7 @@ async function createParte(req, res) {
       nombre_tecnico: nombre_tecnico.trim(),
       observaciones: observaciones || null,
       cliente_email: cliente_email || null,
-      estado: 'inicial', // SIEMPRE inicial al crear
+      estado: normalizarEstado('inicial'), // SIEMPRE inicial al crear (normalizado por consistencia)
     };
 
     const nuevoParte = await partesRepository.createParte(parteData);
@@ -788,6 +803,66 @@ BeeSoftware - Sistema de gestión de partes
   }
 }
 
+/**
+ * Endpoint de diagnóstico - obtiene resumen de partes por estado y técnico
+ * SOLO para admin o si DEBUG_PARTES=true
+ */
+async function getDebugSummary(req, res) {
+  try {
+    const { role } = req.user || {};
+    const DEBUG_MODE = process.env.DEBUG_PARTES === 'true';
+
+    // Solo admin o modo debug
+    if (role !== 'admin' && !DEBUG_MODE) {
+      return res.status(403).json({
+        ok: false,
+        message: 'No autorizado',
+      });
+    }
+
+    const summary = await partesRepository.getDebugSummary();
+
+    return res.status(200).json({
+      ok: true,
+      data: summary,
+    });
+  } catch (error) {
+    console.error('❌ Error en getDebugSummary:', error.message);
+    return res.status(500).json({
+      ok: false,
+      message: 'Error al obtener resumen de diagnóstico',
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Endpoint de versión - devuelve información de la versión del backend
+ */
+async function getVersion(req, res) {
+  try {
+    const version = {
+      version: process.env.APP_VERSION || '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      buildDate: process.env.BUILD_DATE || new Date().toISOString(),
+      gitCommit: process.env.GIT_SHA || 'unknown',
+      nodeVersion: process.version,
+    };
+
+    return res.status(200).json({
+      ok: true,
+      data: version,
+    });
+  } catch (error) {
+    console.error('❌ Error en getVersion:', error.message);
+    return res.status(500).json({
+      ok: false,
+      message: 'Error al obtener versión',
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   getPartes,
   getParteById,
@@ -797,4 +872,6 @@ module.exports = {
   getTecnicos,
   updatePartesOrden,
   enviarEmailCliente,
+  getDebugSummary,
+  getVersion,
 };

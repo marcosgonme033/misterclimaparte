@@ -9,6 +9,12 @@ const { authMiddleware, requireAdmin } = require('../middleware/auth.middleware'
 // Todas las rutas requieren autenticación
 router.use(authMiddleware);
 
+// GET /api/partes/debug/summary - Obtener resumen de diagnóstico (solo admin o DEBUG_PARTES=true)
+router.get('/debug/summary', partesController.getDebugSummary);
+
+// GET /api/partes/version - Obtener versión del backend (público para verificar deployment)
+router.get('/version', partesController.getVersion);
+
 // GET /api/partes/tecnicos - Obtener lista de técnicos (solo admin)
 router.get('/tecnicos', requireAdmin, partesController.getTecnicos);
 

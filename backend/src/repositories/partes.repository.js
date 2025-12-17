@@ -82,7 +82,7 @@ async function getPartesByTecnico(nombreTecnico) {
               fotos_json, firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, 
               estado, orden, created_at, updated_at
        FROM partes
-       WHERE nombre_tecnico = ?
+       WHERE LOWER(TRIM(nombre_tecnico)) = LOWER(TRIM(?))
        ORDER BY 
          CASE estado
            WHEN 'inicial' THEN 1
@@ -359,6 +359,43 @@ async function reorganizarOrden(parteId, estadoAnterior, estadoNuevo) {
   }
 }
 
+/**
+ * Obtiene un resumen de diagnóstico de la base de datos
+ * @returns {Promise<Object>} - Resumen con totales por estado y técnico
+ */
+async function getDebugSummary() {
+  try {
+    // Total de partes
+    const [totalResult] = await pool.query('SELECT COUNT(*) as total FROM partes');
+    const total = totalResult[0].total;
+
+    // Total por estado (SIN normalización para ver estados reales en BD)
+    const [estadosRaw] = await pool.query(
+      `SELECT estado, COUNT(*) as count 
+       FROM partes 
+       GROUP BY estado 
+       ORDER BY count DESC`
+    );
+
+    // Total por técnico
+    const [tecnicos] = await pool.query(
+      `SELECT nombre_tecnico, COUNT(*) as count 
+       FROM partes 
+       GROUP BY nombre_tecnico 
+       ORDER BY count DESC`
+    );
+
+    return {
+      total,
+      porEstadoRaw: estadosRaw,
+      porTecnico: tecnicos,
+    };
+  } catch (error) {
+    console.error('❌ Error en getDebugSummary:', error.message);
+    throw new Error('Error al obtener resumen de diagnóstico');
+  }
+}
+
 module.exports = {
   getAllPartes,
   getPartesByTecnico,
@@ -368,4 +405,5 @@ module.exports = {
   deleteParte,
   updatePartesOrden,
   reorganizarOrden,
+  getDebugSummary,
 };

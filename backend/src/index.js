@@ -130,6 +130,19 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Version endpoint (sin autenticación para verificar deployment)
+app.get('/api/version', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    version: process.env.APP_VERSION || '1.0.0',
+    environment: process.env.NODE_ENV || config.env || 'development',
+    buildDate: process.env.BUILD_DATE || new Date().toISOString(),
+    gitCommit: process.env.GIT_SHA || 'unknown',
+    nodeVersion: process.version,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ==========================
 // HEALTH CHECK DE BASE DE DATOS
 // ==========================
