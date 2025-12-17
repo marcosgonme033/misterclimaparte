@@ -2,37 +2,7 @@
 // Repositorio para gestionar operaciones CRUD de partes
 
 const { pool } = require('../config/db');
-
-// Mapeo de estados antiguos a nuevos (para compatibilidad)
-const ESTADO_LEGACY_MAP = {
-  'revisado': 'revisando',
-  'visitado': 'visitas_realizadas',
-  'reparado': 'ausentes'
-};
-
-/**
- * Normaliza el estado de un parte (mapea estados antiguos a nuevos)
- * @param {Object} parte - Parte a normalizar
- * @returns {Object} - Parte con estado normalizado
- */
-function normalizarEstadoParte(parte) {
-  if (parte && parte.estado && ESTADO_LEGACY_MAP[parte.estado]) {
-    return {
-      ...parte,
-      estado: ESTADO_LEGACY_MAP[parte.estado]
-    };
-  }
-  return parte;
-}
-
-/**
- * Normaliza los estados de un array de partes
- * @param {Array} partes - Array de partes
- * @returns {Array} - Array de partes con estados normalizados
- */
-function normalizarEstadosPartes(partes) {
-  return partes.map(normalizarEstadoParte);
-}
+const { ESTADO_LEGACY_MAP, normalizarEstadoParte, normalizarEstadosPartes } = require('../utils/estado-normalizer');
 
 /**
  * Obtiene todos los partes (para admin)
@@ -155,7 +125,7 @@ async function createParte(data) {
     cliente_email = null,
     dni_cliente = null,
     acepta_proteccion_datos = false,
-    estado = 'pendiente',
+    estado = 'inicial',
   } = data;
 
   try {

@@ -4,26 +4,7 @@
 const partesRepository = require('../repositories/partes.repository');
 const { pool } = require('../config/db');
 const nodemailer = require('nodemailer');
-
-// Estados válidos para el tablero Kanban (NUEVOS)
-const ESTADOS_VALIDOS = ['inicial', 'revisando', 'visitas_realizadas', 'ausentes'];
-
-// Mapeo de compatibilidad para estados antiguos
-const ESTADO_LEGACY_MAP = {
-  'revisado': 'revisando',
-  'visitado': 'visitas_realizadas',
-  'reparado': 'ausentes'
-};
-
-/**
- * Mapea un estado antiguo al nuevo (si es necesario)
- * @param {string} estado - Estado recibido (puede ser antiguo o nuevo)
- * @returns {string} - Estado normalizado al nuevo formato
- */
-function normalizarEstado(estado) {
-  if (!estado) return 'inicial';
-  return ESTADO_LEGACY_MAP[estado] || estado;
-}
+const { ESTADOS_VALIDOS, normalizarEstado } = require('../utils/estado-normalizer');
 
 // Configurar el transporter de email (reutilizar config del index.js)
 let mailTransporter = null;
@@ -432,11 +413,6 @@ async function updateParte(req, res) {
     // Siempre permitir cambio de estado (usar el normalizado)
     if (estadoNormalizado !== undefined) updateData.estado = estadoNormalizado;
 
-    // COMENTADO: Reorganizar orden si cambia el estado (campo 'orden' aún no existe en BD)
-    // if (estado !== undefined && estado !== parteExistente.estado) {
-    //   await partesRepository.reorganizarOrden(parseInt(id), parteExistente.estado, estado);
-    // }
-
     const parteActualizado = await partesRepository.updateParte(parseInt(id), updateData);
 
     if (!parteActualizado) {
@@ -655,7 +631,7 @@ async function updatePartesOrden(req, res) {
 
 /**
  * Envía un email al cliente con los datos del parte
- * Solo disponible para partes en estado 'visitado' o 'reparado'
+ * Solo disponible para partes en estado 'visitas_realizadas' o 'ausentes'
  * Requiere que el parte tenga un email de cliente válido
  */
 async function enviarEmailCliente(req, res) {
