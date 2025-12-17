@@ -3,6 +3,37 @@
 
 const { pool } = require('../config/db');
 
+// Mapeo de estados antiguos a nuevos (para compatibilidad)
+const ESTADO_LEGACY_MAP = {
+  'revisado': 'revisando',
+  'visitado': 'visitas_realizadas',
+  'reparado': 'ausentes'
+};
+
+/**
+ * Normaliza el estado de un parte (mapea estados antiguos a nuevos)
+ * @param {Object} parte - Parte a normalizar
+ * @returns {Object} - Parte con estado normalizado
+ */
+function normalizarEstadoParte(parte) {
+  if (parte && parte.estado && ESTADO_LEGACY_MAP[parte.estado]) {
+    return {
+      ...parte,
+      estado: ESTADO_LEGACY_MAP[parte.estado]
+    };
+  }
+  return parte;
+}
+
+/**
+ * Normaliza los estados de un array de partes
+ * @param {Array} partes - Array de partes
+ * @returns {Array} - Array de partes con estados normalizados
+ */
+function normalizarEstadosPartes(partes) {
+  return partes.map(normalizarEstadoParte);
+}
+
 /**
  * Obtiene todos los partes (para admin)
  * @returns {Promise<Array>} - Lista de todos los partes
@@ -18,15 +49,20 @@ async function getAllPartes() {
        ORDER BY 
          CASE estado
            WHEN 'inicial' THEN 1
+           WHEN 'revisando' THEN 2
            WHEN 'revisado' THEN 2
+           WHEN 'visitas_realizadas' THEN 3
            WHEN 'visitado' THEN 3
+           WHEN 'ausentes' THEN 4
            WHEN 'reparado' THEN 4
            ELSE 5
          END,
          orden ASC,
          created_at DESC`
     );
-    return rows;
+    
+    // Normalizar estados antes de devolver
+    return normalizarEstadosPartes(rows);
   } catch (error) {
     console.error('❌ Error en getAllPartes:', error.message);
     throw new Error('Error al obtener todos los partes');
@@ -50,8 +86,11 @@ async function getPartesByTecnico(nombreTecnico) {
        ORDER BY 
          CASE estado
            WHEN 'inicial' THEN 1
+           WHEN 'revisando' THEN 2
            WHEN 'revisado' THEN 2
+           WHEN 'visitas_realizadas' THEN 3
            WHEN 'visitado' THEN 3
+           WHEN 'ausentes' THEN 4
            WHEN 'reparado' THEN 4
            ELSE 5
          END,
@@ -59,7 +98,9 @@ async function getPartesByTecnico(nombreTecnico) {
          created_at DESC`,
       [nombreTecnico]
     );
-    return rows;
+    
+    // Normalizar estados antes de devolver
+    return normalizarEstadosPartes(rows);
   } catch (error) {
     console.error('❌ Error en getPartesByTecnico:', error.message);
     throw new Error('Error al obtener partes del técnico');
@@ -83,7 +124,10 @@ async function getParteById(id) {
        LIMIT 1`,
       [id]
     );
-    return rows.length > 0 ? rows[0] : null;
+    
+    // Normalizar estado antes de devolver
+    const parte = rows.length > 0 ? rows[0] : null;
+    return parte ? normalizarEstadoParte(parte) : null;
   } catch (error) {
     console.error('❌ Error en getParteById:', error.message);
     throw new Error('Error al obtener el parte');

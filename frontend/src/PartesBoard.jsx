@@ -6,12 +6,12 @@ import logoApp from './assets/logo-beesoftware.jpeg';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// Definición de columnas del tablero Kanban
+// Definición de columnas del tablero Kanban (NUEVOS ESTADOS)
 const COLUMNS = [
   { id: 'inicial', title: 'Parte inicial', color: '#facc15' },
-  { id: 'revisado', title: 'Revisado', color: '#60a5fa' },
-  { id: 'visitado', title: 'Visita realizada', color: '#a78bfa' },
-  { id: 'reparado', title: 'Reparado', color: '#34d399' },
+  { id: 'revisando', title: 'Revisando', color: '#60a5fa' },
+  { id: 'visitas_realizadas', title: 'Visitas realizadas', color: '#a78bfa' },
+  { id: 'ausentes', title: 'Ausentes', color: '#34d399' },
 ];
 
 function PartesBoard({ user, onLogout }) {
@@ -49,6 +49,7 @@ function PartesBoard({ user, onLogout }) {
     nombre_tecnico: '', // Para asignación de técnico (solo admin)
     dni_cliente: '',
     acepta_proteccion_datos: false,
+    estado: '', // Estado del parte (se actualiza desde los botones mini)
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -499,6 +500,7 @@ function PartesBoard({ user, onLogout }) {
         nombre_tecnico: '',
         dni_cliente: '',
         acepta_proteccion_datos: false,
+        estado: '',
       });
       setSelectedImages([]);
       setImagePreviews([]);
@@ -526,6 +528,7 @@ function PartesBoard({ user, onLogout }) {
       nombre_tecnico: '',
       dni_cliente: '',
       acepta_proteccion_datos: false,
+      estado: '',
     });
     setFormErrors({});
     setSelectedImages([]);
@@ -547,6 +550,7 @@ function PartesBoard({ user, onLogout }) {
       nombre_tecnico: parte.nombre_tecnico || '',
       dni_cliente: parte.dni_cliente || '',
       acepta_proteccion_datos: parte.acepta_proteccion_datos || false,
+      estado: parte.estado, // Cargar el estado actual
     });
 
     // Cargar imágenes existentes
@@ -583,6 +587,7 @@ function PartesBoard({ user, onLogout }) {
       const parteData = {
         ...formData,
         fotos_json: fotosArray.length > 0 ? JSON.stringify(fotosArray) : null,
+        estado: formData.estado || selectedParte.estado, // Usar el estado del formulario si fue modificado
       };
 
       const response = await fetch(`${API_BASE_URL}/api/partes/${selectedParte.id}`, {
@@ -612,6 +617,7 @@ function PartesBoard({ user, onLogout }) {
         nombre_tecnico: '',
         dni_cliente: '',
         acepta_proteccion_datos: false,
+        estado: '',
       });
       setSelectedImages([]);
       setImagePreviews([]);
@@ -658,6 +664,7 @@ function PartesBoard({ user, onLogout }) {
         nombre_tecnico: '',
         dni_cliente: '',
         acepta_proteccion_datos: false,
+        estado: '',
       });
       setSelectedImages([]);
       setImagePreviews([]);
@@ -1103,41 +1110,6 @@ function PartesBoard({ user, onLogout }) {
                 </button>
               </div>
 
-              {/* Mini navegación de fases */}
-              <div style={{ 
-                display: 'flex', 
-                gap: '0.5rem', 
-                marginBottom: '1.5rem',
-                flexWrap: 'wrap',
-                padding: '0.5rem',
-                backgroundColor: 'rgba(31, 41, 55, 0.5)',
-                borderRadius: '0.5rem',
-              }}>
-                {COLUMNS.map((column) => (
-                  <button
-                    key={column.id}
-                    type="button"
-                    onClick={() => setCurrentPhaseTab(column.id)}
-                    disabled={formLoading}
-                    style={{
-                      flex: 1,
-                      minWidth: '120px',
-                      padding: '0.6rem 0.8rem',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      borderRadius: '0.4rem',
-                      border: currentPhaseTab === column.id ? `2px solid ${column.color}` : '1px solid rgba(148, 163, 184, 0.3)',
-                      backgroundColor: currentPhaseTab === column.id ? `${column.color}15` : 'rgba(31, 41, 55, 0.7)',
-                      color: currentPhaseTab === column.id ? column.color : '#9ca3af',
-                      cursor: formLoading ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {column.title}
-                  </button>
-                ))}
-              </div>
-
               <form className="auth-form" onSubmit={handleUpdateParte} style={{ gap: '1.1rem' }}>
                 {/* Mismo formulario que crear parte pero con ID del parte y botones diferentes */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
@@ -1216,12 +1188,11 @@ function PartesBoard({ user, onLogout }) {
                     value={formData.observaciones}
                     onChange={(e) => handleFormChange('observaciones', e.target.value)}
                     placeholder="Observaciones generales..."
-                    disabled={selectedParte.estado === 'reparado'}
                   />
                 </div>
 
-                {/* Instrucciones técnico (disponible desde 'revisado') */}
-                {['revisado', 'visitado', 'reparado'].includes(currentPhaseTab) && (
+                {/* Instrucciones técnico (disponible desde 'revisando') */}
+                {['revisando', 'visitas_realizadas', 'ausentes'].includes(formData.estado || selectedParte.estado) && (
                   <div className="field">
                     <label htmlFor="edit_instrucciones_tecnico" className="field-label">
                       Observaciones del técnico
@@ -1234,13 +1205,12 @@ function PartesBoard({ user, onLogout }) {
                       value={formData.instrucciones_tecnico}
                       onChange={(e) => handleFormChange('instrucciones_tecnico', e.target.value)}
                       placeholder="Instrucciones internas..."
-                      disabled={selectedParte.estado === 'reparado'}
                     />
                   </div>
                 )}
 
-                {/* Informe técnico y fotos (disponible desde 'visitado') */}
-                {['visitado', 'reparado'].includes(currentPhaseTab) && (
+                {/* Informe técnico y fotos (disponible desde 'revisando') */}
+                {['revisando', 'visitas_realizadas', 'ausentes'].includes(formData.estado || selectedParte.estado) && (
                   <>
                     <div className="field">
                       <label htmlFor="edit_informe_tecnico" className="field-label">
@@ -1254,35 +1224,32 @@ function PartesBoard({ user, onLogout }) {
                         value={formData.informe_tecnico}
                         onChange={(e) => handleFormChange('informe_tecnico', e.target.value)}
                         placeholder="Informe técnico detallado..."
-                        disabled={selectedParte.estado === 'reparado'}
                       />
                     </div>
 
                     <div className="field">
                       <label className="field-label">Fotos del Trabajo (Máximo 5)</label>
-                      {selectedParte.estado !== 'reparado' && (
-                        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={handleImageChange}
-                            style={{ display: 'none' }}
-                            id="file-upload-edit"
-                          />
-                          <label htmlFor="file-upload-edit" className="btn" style={{ display: 'inline-flex', padding: '0.7rem 1rem', cursor: 'pointer' }}>
-                            📷 Añadir Imágenes
-                          </label>
-                          <button
-                            type="button"
-                            onClick={startCamera}
-                            className="btn"
-                            style={{ display: 'inline-flex', padding: '0.7rem 1rem' }}
-                          >
-                            📸 Hacer Foto
-                          </button>
-                        </div>
-                      )}
+                      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleImageChange}
+                          style={{ display: 'none' }}
+                          id="file-upload-edit"
+                        />
+                        <label htmlFor="file-upload-edit" className="btn" style={{ display: 'inline-flex', padding: '0.7rem 1rem', cursor: 'pointer' }}>
+                          📷 Añadir Imágenes
+                        </label>
+                        <button
+                          type="button"
+                          onClick={startCamera}
+                          className="btn"
+                          style={{ display: 'inline-flex', padding: '0.7rem 1rem' }}
+                        >
+                          📸 Hacer Foto
+                        </button>
+                      </div>
 
                       {/* Modal de cámara */}
                       {showCamera && (
@@ -1358,37 +1325,35 @@ function PartesBoard({ user, onLogout }) {
                               }}
                             >
                               <img src={preview} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              {selectedParte.estado !== 'reparado' && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeImage(index)}
-                                  style={{
-                                    position: 'absolute',
-                                    top: '4px',
-                                    right: '4px',
-                                    background: 'rgba(15, 23, 42, 0.9)',
-                                    border: '1px solid rgba(248, 113, 113, 0.8)',
-                                    borderRadius: '50%',
-                                    width: '24px',
-                                    height: '24px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    fontSize: '0.75rem',
-                                    color: '#fecaca',
-                                  }}
-                                >
-                                  ✕
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeImage(index)}
+                                style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  right: '4px',
+                                  background: 'rgba(15, 23, 42, 0.9)',
+                                  border: '1px solid rgba(248, 113, 113, 0.8)',
+                                  borderRadius: '50%',
+                                  width: '24px',
+                                  height: '24px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  fontSize: '0.75rem',
+                                  color: '#fecaca',
+                                }}
+                              >
+                                ✕
+                              </button>
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Campos adicionales para estado "visitado" */}
+                    {/* Campos adicionales para estado "revisando", "visitas_realizadas" y "ausentes" */}
                     <div className="field">
                       <label htmlFor="edit_dni_cliente" className="field-label">
                         DNI del cliente
@@ -1400,7 +1365,6 @@ function PartesBoard({ user, onLogout }) {
                         value={formData.dni_cliente}
                         onChange={(e) => handleFormChange('dni_cliente', e.target.value)}
                         placeholder="Ej. 12345678A"
-                        disabled={selectedParte.estado === 'reparado'}
                       />
                     </div>
 
@@ -1410,13 +1374,12 @@ function PartesBoard({ user, onLogout }) {
                           type="checkbox"
                           checked={formData.acepta_proteccion_datos}
                           onChange={(e) => handleFormChange('acepta_proteccion_datos', e.target.checked)}
-                          disabled={selectedParte.estado === 'reparado'}
                         />
                         <span>El cliente declara haber sido informado y acepta la política de protección de datos.</span>
                       </label>
                     </div>
 
-                    {/* Botón de enviar email - solo si está en visitado o reparado Y tiene email */}
+                    {/* Botón de enviar email - solo si está en revisando, visitas_realizadas o ausentes Y tiene email */}
                     {formData.cliente_email && formData.cliente_email.trim() && (
                       <div style={{ marginTop: '0.5rem' }}>
                         <button
@@ -1465,13 +1428,68 @@ function PartesBoard({ user, onLogout }) {
                   </>
                 )}
 
+                {/* Mini botones de cambio de estado - justo encima del botón Guardar */}
+                <div style={{ 
+                  marginTop: '1.5rem',
+                  padding: '1rem',
+                  backgroundColor: 'rgba(31, 41, 55, 0.5)',
+                  borderRadius: '0.5rem',
+                  border: '1px solid rgba(148, 163, 184, 0.2)'
+                }}>
+                  <label className="field-label" style={{ marginBottom: '0.75rem', display: 'block' }}>
+                    Cambiar estado del parte:
+                  </label>
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '0.5rem',
+                    flexWrap: 'wrap'
+                  }}>
+                    {COLUMNS.map((column) => (
+                      <button
+                        key={column.id}
+                        type="button"
+                        onClick={() => handleFormChange('estado', column.id)}
+                        disabled={formLoading}
+                        style={{
+                          flex: 1,
+                          minWidth: '100px',
+                          padding: '0.6rem 0.8rem',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          borderRadius: '0.4rem',
+                          border: formData.estado === column.id || (!formData.estado && selectedParte.estado === column.id) 
+                            ? `2px solid ${column.color}` 
+                            : '1px solid rgba(148, 163, 184, 0.3)',
+                          backgroundColor: formData.estado === column.id || (!formData.estado && selectedParte.estado === column.id)
+                            ? `${column.color}20` 
+                            : 'rgba(31, 41, 55, 0.7)',
+                          color: formData.estado === column.id || (!formData.estado && selectedParte.estado === column.id)
+                            ? column.color 
+                            : '#9ca3af',
+                          cursor: formLoading ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {column.title}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ 
+                    fontSize: '0.8rem', 
+                    color: '#9ca3af', 
+                    marginTop: '0.75rem',
+                    marginBottom: 0,
+                    textAlign: 'center'
+                  }}>
+                    💡 Selecciona el nuevo estado y luego pulsa "Guardar cambios"
+                  </p>
+                </div>
+
                 {/* Botones de acción */}
-                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                  {selectedParte.estado !== 'reparado' && (
-                    <button type="submit" disabled={formLoading} className="primary-btn" style={{ flex: 1, marginTop: 0 }}>
-                      {formLoading ? 'Actualizando...' : 'Guardar Cambios'}
-                    </button>
-                  )}
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                  <button type="submit" disabled={formLoading} className="primary-btn" style={{ flex: 1, marginTop: 0 }}>
+                    {formLoading ? 'Actualizando...' : 'Guardar Cambios'}
+                  </button>
                 </div>
               </form>
             </div>

@@ -5,8 +5,25 @@ const partesRepository = require('../repositories/partes.repository');
 const { pool } = require('../config/db');
 const nodemailer = require('nodemailer');
 
-// Estados válidos para el tablero Kanban
-const ESTADOS_VALIDOS = ['inicial', 'revisado', 'visitado', 'reparado'];
+// Estados válidos para el tablero Kanban (NUEVOS)
+const ESTADOS_VALIDOS = ['inicial', 'revisando', 'visitas_realizadas', 'ausentes'];
+
+// Mapeo de compatibilidad para estados antiguos
+const ESTADO_LEGACY_MAP = {
+  'revisado': 'revisando',
+  'visitado': 'visitas_realizadas',
+  'reparado': 'ausentes'
+};
+
+/**
+ * Mapea un estado antiguo al nuevo (si es necesario)
+ * @param {string} estado - Estado recibido (puede ser antiguo o nuevo)
+ * @returns {string} - Estado normalizado al nuevo formato
+ */
+function normalizarEstado(estado) {
+  if (!estado) return 'inicial';
+  return ESTADO_LEGACY_MAP[estado] || estado;
+}
 
 // Configurar el transporter de email (reutilizar config del index.js)
 let mailTransporter = null;
@@ -324,8 +341,11 @@ async function updateParte(req, res) {
       estado,
     } = req.body;
 
+    // Normalizar estado (mapeo de compatibilidad con estados antiguos)
+    const estadoNormalizado = estado ? normalizarEstado(estado) : null;
+
     // Si se cambia el estado, validar que sea válido
-    if (estado && !ESTADOS_VALIDOS.includes(estado)) {
+    if (estadoNormalizado && !ESTADOS_VALIDOS.includes(estadoNormalizado)) {
       return res.status(400).json({
         ok: false,
         message: `Estado inválido. Debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}`,
@@ -333,20 +353,18 @@ async function updateParte(req, res) {
     }
 
     // El estado a validar es el nuevo o el actual
-    const estadoFinal = estado || parteExistente.estado;
+    const estadoFinal = estadoNormalizado || parteExistente.estado;
 
     // Log de depuración para cambios de estado
-    if (estado !== undefined && estado !== parteExistente.estado) {
+    if (estadoNormalizado !== undefined && estadoNormalizado !== parteExistente.estado) {
       console.log('🔄 Cambio de estado detectado:', {
         parteId: id,
         estadoAnterior: parteExistente.estado,
-        estadoNuevo: estado,
-        direccion: ESTADOS_VALIDOS.indexOf(estado) < ESTADOS_VALIDOS.indexOf(parteExistente.estado) ? '⬅️ Hacia atrás' : '➡️ Hacia adelante'
+        estadoNuevo: estadoNormalizado,
+        direccion: ESTADOS_VALIDOS.indexOf(estadoNormalizado) < ESTADOS_VALIDOS.indexOf(parteExistente.estado) ? '⬅️ Hacia atrás' : '➡️ Hacia adelante'
       });
     }
 
-    // ELIMINADO: Ya no bloqueamos la edición si está en "reparado"
-    // Los partes pueden volver de "reparado" a "visitado"
     // ✅ PERMITIDO: Movimiento bidireccional entre TODOS los estados
 
     // Validar numero_parte si se proporciona
@@ -368,17 +386,17 @@ async function updateParte(req, res) {
     };
 
     // Campos permitidos según estado (preservar valores existentes)
-    if (estadoFinal === 'revisado' || estadoFinal === 'visitado' || estadoFinal === 'reparado') {
+    if (estadoFinal === 'revisando' || estadoFinal === 'visitas_realizadas' || estadoFinal === 'ausentes') {
       updateData.instrucciones_tecnico = instrucciones_tecnico !== undefined ? instrucciones_tecnico : parteExistente.instrucciones_tecnico;
     }
 
-    if (estadoFinal === 'visitado' || estadoFinal === 'reparado') {
+    if (estadoFinal === 'visitas_realizadas' || estadoFinal === 'ausentes') {
       updateData.informe_tecnico = informe_tecnico !== undefined ? informe_tecnico : parteExistente.informe_tecnico;
       updateData.fotos_json = fotos_json !== undefined ? fotos_json : parteExistente.fotos_json;
     }
 
-    // Siempre permitir cambio de estado
-    if (estado !== undefined) updateData.estado = estado;
+    // Siempre permitir cambio de estado (usar el normalizado)
+    if (estadoNormalizado !== undefined) updateData.estado = estadoNormalizado;
 
     // COMENTADO: Reorganizar orden si cambia el estado (campo 'orden' aún no existe en BD)
     // if (estado !== undefined && estado !== parteExistente.estado) {
@@ -602,11 +620,11 @@ async function enviarEmailCliente(req, res) {
       }
     }
 
-    // Validar que el parte esté en estado 'visitado' o 'reparado'
-    if (!['visitado', 'reparado'].includes(parte.estado)) {
+    // Validar que el parte esté en estado 'revisando', 'visitas_realizadas' o 'ausentes'
+    if (!['revisando', 'visitas_realizadas', 'ausentes'].includes(parte.estado)) {
       return res.status(400).json({
         ok: false,
-        message: 'Solo se puede enviar email para partes en estado "Visita realizada" o "Reparado"',
+        message: 'Solo se puede enviar email para partes en estado "Revisando", "Visitas realizadas" o "Ausentes"',
       });
     }
 
@@ -629,7 +647,12 @@ async function enviarEmailCliente(req, res) {
     }
 
     // Preparar contenido del email
-    const estadoTexto = parte.estado === 'visitado' ? 'Visita realizada' : 'Reparado';
+    const estadoTextos = {
+      'revisando': 'Revisando',
+      'visitas_realizadas': 'Visitas realizadas',
+      'ausentes': 'Ausente'
+    };
+    const estadoTexto = estadoTextos[parte.estado] || parte.estado;
     const subject = `Parte #${parte.numero_parte} - ${estadoTexto}`;
     
     const htmlBody = `
