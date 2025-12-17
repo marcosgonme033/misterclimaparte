@@ -316,6 +316,7 @@ async function updateParte(req, res) {
   try {
     const { id } = req.params;
     const { role, name, username } = req.user || {};
+    const DEBUG_MODE = process.env.DEBUG_PARTES === 'true';
 
     if (!id || isNaN(id)) {
       return res.status(400).json({
@@ -358,12 +359,29 @@ async function updateParte(req, res) {
 
     // Normalizar estado (mapeo de compatibilidad con estados antiguos)
     const estadoNormalizado = estado ? normalizarEstado(estado) : null;
+    
+    if (DEBUG_MODE) {
+      console.log('🔄 [DRAG&DROP updateParte]');
+      console.log('  ParteId:', id);
+      console.log('  Usuario:', { username, name, role });
+      console.log('  Estado recibido:', estado);
+      console.log('  Estado normalizado:', estadoNormalizado);
+      console.log('  Estado anterior:', parteExistente.estado);
+    }
 
     // Si se cambia el estado, validar que sea válido
     if (estadoNormalizado && !ESTADOS_VALIDOS.includes(estadoNormalizado)) {
+      console.error('❌ Estado inválido rechazado:', {
+        estadoRecibido: estado,
+        estadoNormalizado,
+        estadosValidos: ESTADOS_VALIDOS
+      });
       return res.status(400).json({
         ok: false,
-        message: `Estado inválido. Debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}`,
+        message: `Estado inválido: "${estado}". Debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}`,
+        estadoRecibido: estado,
+        estadoNormalizado: estadoNormalizado,
+        estadosValidos: ESTADOS_VALIDOS
       });
     }
 
@@ -372,7 +390,8 @@ async function updateParte(req, res) {
 
     // Log de depuración para cambios de estado
     if (estadoNormalizado !== undefined && estadoNormalizado !== parteExistente.estado) {
-      console.log('🔄 Cambio de estado detectado:', {
+      const isDragDrop = !req.body.numero_parte; // Si solo viene estado, probablemente es drag&drop
+      console.log(`${isDragDrop ? '🔄 [DRAG&DROP]' : '📝 [EDICIÓN]'} Cambio de estado:`, {
         parteId: id,
         estadoAnterior: parteExistente.estado,
         estadoNuevo: estadoNormalizado,
@@ -427,6 +446,11 @@ async function updateParte(req, res) {
       });
     }
 
+    if (DEBUG_MODE) {
+      console.log('  ✅ Parte actualizado correctamente');
+      console.log('  📊 Estado final:', parteActualizado.estado);
+    }
+
     return res.status(200).json({
       ok: true,
       message: 'Parte actualizado exitosamente',
@@ -434,6 +458,7 @@ async function updateParte(req, res) {
     });
   } catch (error) {
     console.error('❌ Error en updateParte:', error.message);
+    console.error('   Stack:', error.stack);
     return res.status(500).json({
       ok: false,
       message: 'Error al actualizar el parte',
@@ -550,6 +575,13 @@ async function updatePartesOrden(req, res) {
   try {
     const { role, name, username } = req.user || {};
     const { updates } = req.body; // Array de {id, orden, estado}
+    const DEBUG_MODE = process.env.DEBUG_PARTES === 'true';
+
+    if (DEBUG_MODE) {
+      console.log('🔄 [DRAG&DROP updatePartesOrden]');
+      console.log('  Usuario:', { username, name, role });
+      console.log('  Updates recibidos:', updates);
+    }
 
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
       return res.status(400).json({
@@ -558,10 +590,29 @@ async function updatePartesOrden(req, res) {
       });
     }
 
+    // Normalizar estados si vienen en los updates
+    const updatesNormalizados = updates.map(update => {
+      if (update.estado) {
+        const estadoNormalizado = normalizarEstado(update.estado);
+        
+        // Validar que el estado normalizado sea válido
+        if (!ESTADOS_VALIDOS.includes(estadoNormalizado)) {
+          throw new Error(`Estado inválido: ${update.estado}`);
+        }
+        
+        if (DEBUG_MODE && update.estado !== estadoNormalizado) {
+          console.log(`  📝 Estado normalizado: ${update.estado} → ${estadoNormalizado}`);
+        }
+        
+        return { ...update, estado: estadoNormalizado };
+      }
+      return update;
+    });
+
     // Si es user, verificar que solo reordena sus propios partes
     if (role !== 'admin') {
       const tecnicoName = name || username;
-      const parteIds = updates.map(u => u.id);
+      const parteIds = updatesNormalizados.map(u => u.id);
       
       // Verificar que todos los partes pertenecen al técnico
       const partes = await Promise.all(
@@ -581,7 +632,12 @@ async function updatePartesOrden(req, res) {
     }
 
     // Actualizar orden
-    await partesRepository.updatePartesOrden(updates);
+    await partesRepository.updatePartesOrden(updatesNormalizados);
+
+    if (DEBUG_MODE) {
+      console.log('  ✅ Orden actualizado correctamente');
+      console.log(`  📊 ${updatesNormalizados.length} partes actualizados`);
+    }
 
     return res.status(200).json({
       ok: true,

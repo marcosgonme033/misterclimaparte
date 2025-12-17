@@ -295,7 +295,8 @@ async function deleteParte(id) {
 
 /**
  * Actualiza el orden de múltiples partes en una columna (batch update)
- * @param {Array} updates - Array de objetos {id, orden}
+ * También puede actualizar el estado si viene en los updates
+ * @param {Array} updates - Array de objetos {id, orden, estado (opcional)}
  * @returns {Promise<boolean>} - true si se actualizó correctamente
  */
 async function updatePartesOrden(updates) {
@@ -306,10 +307,19 @@ async function updatePartesOrden(updates) {
     await connection.beginTransaction();
 
     for (const update of updates) {
-      await connection.query(
-        'UPDATE partes SET orden = ? WHERE id = ?',
-        [update.orden, update.id]
-      );
+      // Si viene estado, actualizar estado y orden
+      if (update.estado !== undefined) {
+        await connection.query(
+          'UPDATE partes SET orden = ?, estado = ? WHERE id = ?',
+          [update.orden, update.estado, update.id]
+        );
+      } else {
+        // Solo actualizar orden
+        await connection.query(
+          'UPDATE partes SET orden = ? WHERE id = ?',
+          [update.orden, update.id]
+        );
+      }
     }
 
     await connection.commit();

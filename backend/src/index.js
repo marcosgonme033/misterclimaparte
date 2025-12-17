@@ -15,13 +15,41 @@ const app = express();
 const PORT = config.port || 5000;
 const HOST = '0.0.0.0';
 
-// CORS simple para desarrollo
-app.use(cors({
-  origin: true,
+// CORS configurado para desarrollo y producción
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como Postman, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Lista de orígenes permitidos
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://misterclima.es',
+      'https://www.misterclima.es'
+    ];
+    
+    // Permitir el origen si está en la lista
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️  CORS: Origen no permitido: ${origin}`);
+      callback(null, true); // Por ahora permitir todos (cambiar a false en producción final)
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user'],
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Total-Count'],
+  maxAge: 86400, // 24 horas de caché para preflight
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+
+// Handler explícito para OPTIONS (preflight)
+app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
