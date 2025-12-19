@@ -323,6 +323,13 @@ app.get('/api/health/smtp', async (req, res) => {
     });
   }
 });
+app.get("/api/version", (req, res) => {
+  res.json({
+    env: process.env.NODE_ENV,
+    ts: new Date().toISOString(),
+    commit: process.env.GIT_COMMIT || null,
+  });
+});
 
 // ==========================
 // RUTAS DE PARTES
