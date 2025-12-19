@@ -1,7 +1,7 @@
 // BeeSoftware/frontend/src/App.jsx
 import { useState, useEffect } from 'react';
 import PartesBoard from './PartesBoard';
-import logoLogin from './assets/logo-beesoftware.jpeg';
+import logoLogin from './assets/logo_MrClim.jpeg';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 

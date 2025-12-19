@@ -1,6 +1,9 @@
 // BeeSoftware/backend/src/index.js
 // API de autenticación + conexión a BD para BeeSoftware - VERSIÓN PRODUCCIÓN
 
+// ⚠️ IMPORTANTE: Cargar dotenv ANTES de importar cualquier módulo que lea process.env
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
@@ -75,18 +78,23 @@ const RECOVERY_CODES = {};
 // Configure mail transporter (uses env vars). If not configured, we'll create a test account.
 let mailTransporter = null;
 async function initMailer() {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    mailTransporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-    console.log('✉️ Mailer configurado con SMTP personalizado');
-    return;
+  if (config.smtp.host && config.smtp.user && config.smtp.pass) {
+    try {
+      mailTransporter = nodemailer.createTransport({
+        host: config.smtp.host,
+        port: config.smtp.port,
+        secure: config.smtp.secure,
+        auth: {
+          user: config.smtp.user,
+          pass: config.smtp.pass,
+        },
+      });
+      await mailTransporter.verify();
+      console.log('✉️ Mailer configurado con SMTP personalizado');
+      return;
+    } catch (err) {
+      console.error('❌ Error al verificar SMTP:', err.message);
+    }
   }
 
   // fallback to test account
@@ -224,6 +232,94 @@ app.get('/health/db', async (req, res) => {
         user: config.db.user
       },
       timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// ==========================
+// HEALTH CHECK - SMTP (Diagnóstico)
+// ==========================
+app.get('/api/health/smtp', async (req, res) => {
+  try {
+    const config = require('./config/env');
+    const nodemailer = require('nodemailer');
+    
+    // Verificar que tenemos configuración SMTP
+    if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
+      return res.status(503).json({
+        ok: false,
+        error: 'SMTP_NOT_CONFIGURED',
+        message: 'Servicio SMTP no configurado',
+        details: 'Faltan variables de entorno: SMTP_HOST, SMTP_USER y/o SMTP_PASS',
+        config: {
+          host: config.smtp.host || null,
+          port: config.smtp.port,
+          secure: config.smtp.secure,
+          user: config.smtp.user || null,
+          from: config.smtp.from,
+        }
+      });
+    }
+
+    // Crear transporter temporal para verificar
+    const testTransporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.secure,
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.pass,
+      },
+    });
+
+    // Intentar verificar la conexión
+    await testTransporter.verify();
+    
+    return res.json({
+      ok: true,
+      message: 'Conexión SMTP verificada correctamente',
+      config: {
+        host: config.smtp.host,
+        port: config.smtp.port,
+        secure: config.smtp.secure,
+        requireTLS: config.smtp.requireTLS,
+        user: config.smtp.user,
+        from: config.smtp.from,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    // Analizar tipo de error
+    let errorCode = 'SMTP_CONNECTION_ERROR';
+    let errorMessage = err.message;
+    
+    if (err.responseCode === 535 || err.message.includes('535')) {
+      errorCode = 'SMTP_AUTH_FAILED';
+      errorMessage = 'Error de autenticación SMTP (credenciales incorrectas)';
+    } else if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED') {
+      errorCode = 'SMTP_CONNECTION_TIMEOUT';
+      errorMessage = `No se pudo conectar al servidor SMTP: ${err.code}`;
+    } else if (err.code === 'ESOCKET') {
+      errorCode = 'SMTP_TLS_ERROR';
+      errorMessage = 'Error de conexión SSL/TLS';
+    }
+
+    return res.status(503).json({
+      ok: false,
+      error: errorCode,
+      message: errorMessage,
+      details: {
+        code: err.code,
+        responseCode: err.responseCode,
+        command: err.command,
+      },
+      config: {
+        host: config.smtp.host,
+        port: config.smtp.port,
+        secure: config.smtp.secure,
+        user: config.smtp.user,
+      },
+      timestamp: new Date().toISOString(),
     });
   }
 });

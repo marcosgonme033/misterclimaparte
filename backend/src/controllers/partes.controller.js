@@ -4,44 +4,144 @@
 const partesRepository = require('../repositories/partes.repository');
 const { pool } = require('../config/db');
 const nodemailer = require('nodemailer');
+const config = require('../config/env');
 const { ESTADOS_VALIDOS, normalizarEstado } = require('../utils/estado-normalizer');
 
-// Configurar el transporter de email (reutilizar config del index.js)
+// Configurar el transporter de email
 let mailTransporter = null;
+let smtpMode = null; // 'real' | 'test' | null
 
 async function initMailTransporter() {
   if (mailTransporter) return mailTransporter;
 
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    mailTransporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-    return mailTransporter;
-  }
+  // Logs de diagnóstico profesionales (sin contraseña)
+  console.log('🔧 Configurando transporter de email...');
+  console.log('  SMTP_HOST:', config.smtp.host || '(no configurado)');
+  console.log('  SMTP_PORT:', config.smtp.port || '(no configurado)');
+  console.log('  SMTP_SECURE:', config.smtp.secure);
+  console.log('  SMTP_REQUIRE_TLS:', config.smtp.requireTLS);
+  console.log('  SMTP_USER:', config.smtp.user || '(no configurado)');
+  console.log('  SMTP_FROM:', config.smtp.from || '(no configurado)');
+  console.log('  NODE_ENV:', config.env);
+  console.log('  ALLOW_TEST_SMTP:', process.env.ALLOW_TEST_SMTP || 'false');
 
-  // Fallback a cuenta de prueba
-  try {
-    const testAccount = await nodemailer.createTestAccount();
-    mailTransporter = nodemailer.createTransport({
-      host: testAccount.smtp.host,
-      port: testAccount.smtp.port,
-      secure: testAccount.smtp.secure,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
-    return mailTransporter;
-  } catch (err) {
-    console.error('❌ No se pudo inicializar el transporter de email:', err.message);
+  const isProduction = config.env === 'production';
+  const hasSmtpConfig = config.smtp.host && config.smtp.user && config.smtp.pass;
+  const allowTestSmtp = process.env.ALLOW_TEST_SMTP === 'true';
+
+  // Validación estricta en producción
+  if (isProduction && !hasSmtpConfig) {
+    console.error('❌ ERROR CRÍTICO: Producción requiere configuración SMTP completa');
+    console.error('   Variables faltantes: SMTP_HOST, SMTP_USER y/o SMTP_PASS');
     return null;
   }
+
+  // Si hay configuración SMTP, intentar usarla (producción o desarrollo)
+  if (hasSmtpConfig) {
+    try {
+      const transportConfig = {
+        host: config.smtp.host,
+        port: config.smtp.port,
+        secure: config.smtp.secure, // true para 465, false para otros puertos
+        auth: {
+          user: config.smtp.user,
+          pass: config.smtp.pass,
+        },
+      };
+
+      // Añadir configuración TLS adicional si está habilitada
+      if (config.smtp.requireTLS) {
+        transportConfig.tls = {
+          // No rechazar certificados no autorizados en desarrollo (cuidado en producción)
+          rejectUnauthorized: isProduction,
+        };
+      }
+
+      mailTransporter = nodemailer.createTransport(transportConfig);
+      
+      // Verificar conexión SMTP
+      console.log('🔄 Verificando conexión SMTP...');
+      await mailTransporter.verify();
+      smtpMode = 'real';
+      console.log('✅ Transporter SMTP REAL configurado y verificado');
+      console.log(`   Modo: PRODUCCIÓN (${config.smtp.host}:${config.smtp.port})`);
+      console.log(`   Usuario: ${config.smtp.user}`);
+      console.log(`   Secure (SSL/TLS): ${config.smtp.secure}`);
+      return mailTransporter;
+    } catch (err) {
+      // Logs detallados según tipo de error
+      console.error('❌ Error al verificar configuración SMTP');
+      console.error('   Mensaje:', err.message);
+      console.error('   Código:', err.code || 'N/A');
+      
+      // Errores específicos comunes
+      if (err.responseCode === 535 || err.message.includes('535')) {
+        console.error('   ⚠️  ERROR 535: Autenticación SMTP fallida');
+        console.error('   Verifica SMTP_USER y SMTP_PASS en .env');
+      } else if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED') {
+        console.error('   ⚠️  ERROR DE CONEXIÓN:', err.code);
+        console.error('   Verifica SMTP_HOST y SMTP_PORT, y que el servidor esté accesible');
+      } else if (err.code === 'ESOCKET') {
+        console.error('   ⚠️  ERROR DE SOCKET/TLS');
+        console.error('   Verifica SMTP_SECURE y SMTP_PORT (465=secure:true, 587=secure:false)');
+      }
+      
+      console.error('   Host:', config.smtp.host);
+      console.error('   Puerto:', config.smtp.port);
+      console.error('   Usuario:', config.smtp.user);
+      console.error('   Secure:', config.smtp.secure);
+      
+      // Reset del transporter
+      mailTransporter = null;
+      smtpMode = null;
+      
+      // PRODUCCIÓN: NUNCA usar fallback
+      if (isProduction) {
+        console.error('   ❌ PRODUCCIÓN: NO se usará fallback - se debe corregir la configuración');
+        return null;
+      }
+      
+      // DESARROLLO con config SMTP: tampoco usar fallback (para detectar problemas)
+      console.error('   ❌ Hay configuración SMTP pero falló - NO se usará fallback Ethereal');
+      console.error('   Corrige la configuración SMTP o elimina las variables para desarrollo');
+      return null;
+    }
+  }
+
+  // Fallback a Ethereal SOLO si:
+  // - No hay configuración SMTP definida
+  // - Y (ALLOW_TEST_SMTP=true O no es producción)
+  if (!hasSmtpConfig && (allowTestSmtp || !isProduction)) {
+    try {
+      console.log('⚠️  No hay configuración SMTP - intentando Ethereal para desarrollo...');
+      const testAccount = await nodemailer.createTestAccount();
+      mailTransporter = nodemailer.createTransport({
+        host: testAccount.smtp.host,
+        port: testAccount.smtp.port,
+        secure: testAccount.smtp.secure,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+      smtpMode = 'test';
+      console.log('✅ Usando cuenta de prueba ETHEREAL (desarrollo)');
+      console.log('   ⚠️  Los emails NO llegarán a destinatarios reales');
+      return mailTransporter;
+    } catch (err) {
+      console.error('❌ No se pudo inicializar Ethereal:', err.message);
+      smtpMode = null;
+      return null;
+    }
+  }
+
+  // Si llegamos aquí: no hay transporter disponible
+  console.error('❌ No hay servicio de email disponible');
+  if (isProduction) {
+    console.error('   Producción requiere configuración SMTP válida');
+  }
+  smtpMode = null;
+  return null;
 }
 
 /**
@@ -330,8 +430,12 @@ async function updateParte(req, res) {
       numero_parte,
       aparato,
       poblacion,
+      calle,
       observaciones,
       cliente_email,
+      cliente_telefono,
+      dni_cliente,
+      acepta_proteccion_datos,
       instrucciones_tecnico,
       informe_tecnico,
       fotos_json,
@@ -396,16 +500,22 @@ async function updateParte(req, res) {
       numero_parte: numero_parte !== undefined ? numero_parte : parteExistente.numero_parte,
       aparato: aparato !== undefined ? aparato : parteExistente.aparato,
       poblacion: poblacion !== undefined ? poblacion : parteExistente.poblacion,
+      calle: calle !== undefined ? calle : parteExistente.calle,
       observaciones: observaciones !== undefined ? observaciones : parteExistente.observaciones,
       cliente_email: cliente_email !== undefined ? cliente_email : parteExistente.cliente_email,
+      cliente_telefono: cliente_telefono !== undefined ? (cliente_telefono ? cliente_telefono.trim().replace(/\s+/g, ' ') : null) : parteExistente.cliente_telefono,
+      dni_cliente: dni_cliente !== undefined ? dni_cliente : parteExistente.dni_cliente,
+      acepta_proteccion_datos: acepta_proteccion_datos !== undefined ? acepta_proteccion_datos : parteExistente.acepta_proteccion_datos,
     };
 
-    // Campos permitidos según estado (preservar valores existentes)
+    // ✅ Campos adicionales permitidos según estado (preservar valores existentes)
+    // Instrucciones técnico: disponible en revisando, visitas_realizadas y ausentes
     if (estadoFinal === 'revisando' || estadoFinal === 'visitas_realizadas' || estadoFinal === 'ausentes') {
       updateData.instrucciones_tecnico = instrucciones_tecnico !== undefined ? instrucciones_tecnico : parteExistente.instrucciones_tecnico;
     }
 
-    if (estadoFinal === 'visitas_realizadas' || estadoFinal === 'ausentes') {
+    // ✅ Informe técnico e imágenes: disponible en revisando, visitas_realizadas y ausentes
+    if (estadoFinal === 'revisando' || estadoFinal === 'visitas_realizadas' || estadoFinal === 'ausentes') {
       updateData.informe_tecnico = informe_tecnico !== undefined ? informe_tecnico : parteExistente.informe_tecnico;
       updateData.fotos_json = fotos_json !== undefined ? fotos_json : parteExistente.fotos_json;
     }
@@ -667,15 +777,8 @@ async function enviarEmailCliente(req, res) {
       }
     }
 
-    // Validar que el parte esté en estado 'revisando', 'visitas_realizadas' o 'ausentes'
-    if (!['revisando', 'visitas_realizadas', 'ausentes'].includes(parte.estado)) {
-      return res.status(400).json({
-        ok: false,
-        message: 'Solo se puede enviar email para partes en estado "Revisando", "Visitas realizadas" o "Ausentes"',
-      });
-    }
-
-    // Validar que el parte tenga email de cliente
+    // ✅ VALIDACIONES OBLIGATORIAS PARA ENVIAR EMAIL (RGPD)
+    // 1. Validar que existe email de cliente
     if (!parte.cliente_email || !parte.cliente_email.trim()) {
       return res.status(400).json({
         ok: false,
@@ -683,92 +786,265 @@ async function enviarEmailCliente(req, res) {
       });
     }
 
+    // 2. Validar formato de email (simple)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(parte.cliente_email.trim())) {
+      return res.status(400).json({
+        ok: false,
+        message: 'El email del cliente no tiene un formato válido',
+      });
+    }
+
+    // 3. Validar que existe DNI del cliente
+    if (!parte.dni_cliente || !parte.dni_cliente.trim()) {
+      return res.status(400).json({
+        ok: false,
+        message: 'El parte no tiene DNI del cliente. El DNI es obligatorio para enviar emails (protección de datos).',
+        campoFaltante: 'dni_cliente',
+      });
+    }
+
+    // 4. Validar que el cliente ha aceptado protección de datos
+    if (!parte.acepta_proteccion_datos) {
+      return res.status(400).json({
+        ok: false,
+        message: 'El cliente no ha aceptado la política de protección de datos. Es necesario marcar el checkbox antes de enviar emails.',
+        campoFaltante: 'acepta_proteccion_datos',
+      });
+    }
+
     // Inicializar el transporter si no existe
     const transporter = await initMailTransporter();
     
     if (!transporter) {
+      // Determinar el motivo del fallo
+      const hasSmtpConfig = config.smtp.host && config.smtp.user && config.smtp.pass;
+      
+      if (hasSmtpConfig) {
+        // Hay configuración SMTP pero falló (probablemente auth error)
+        return res.status(500).json({
+          ok: false,
+          error: 'SMTP_AUTH_FAILED',
+          message: 'Error de autenticación SMTP. Verifica las credenciales.',
+          details: `No se pudo conectar a ${config.smtp.host}:${config.smtp.port}. Revisa SMTP_USER y SMTP_PASS en el archivo .env`,
+        });
+      } else {
+        // No hay configuración SMTP
+        return res.status(500).json({
+          ok: false,
+          error: 'SMTP_NOT_CONFIGURED',
+          message: 'Servicio de email no disponible. SMTP no configurado.',
+          details: 'Configura las variables de entorno: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM',
+        });
+      }
+    }
+
+    // Advertir si se está usando modo test en producción (no debería pasar)
+    if (smtpMode === 'test' && config.env === 'production') {
+      console.error('⚠️  ADVERTENCIA: Usando SMTP de prueba en producción');
       return res.status(500).json({
         ok: false,
-        message: 'Servicio de email no disponible',
+        message: 'Configuración de email incorrecta para producción',
+        details: 'El servidor está usando cuenta de prueba en lugar de SMTP real',
       });
     }
 
-    // Preparar contenido del email
+    // Preparar contenido del email con TODOS los campos del parte
     const estadoTextos = {
+      'inicial': 'Parte inicial',
       'revisando': 'Revisando',
+      'revisado': 'Revisado',
       'visitas_realizadas': 'Visitas realizadas',
-      'ausentes': 'Ausente'
+      'visitado': 'Visitado',
+      'ausentes': 'Ausente',
+      'reparado': 'Reparado'
     };
     const estadoTexto = estadoTextos[parte.estado] || parte.estado;
-    const subject = `Parte #${parte.numero_parte} - ${estadoTexto}`;
+    const subject = `MisterClima - Parte #${parte.numero_parte || parte.id} - ${estadoTexto}`;
     
+    // Formatear fecha de creación si existe
+    const fechaCreacion = parte.created_at 
+      ? new Date(parte.created_at).toLocaleDateString('es-ES', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : 'N/A';
+
     const htmlBody = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #facc15; color: #1f2937; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-          .content { background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
-          .field { margin-bottom: 15px; }
-          .label { font-weight: bold; color: #1f2937; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f5f5f5; }
+          .container { max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .header { background-color: #facc15; color: #1f2937; padding: 30px 20px; text-align: center; }
+          .header h1 { margin: 0 0 10px 0; font-size: 24px; }
+          .header h2 { margin: 0; font-size: 20px; font-weight: normal; }
+          .intro { padding: 20px 30px; background-color: #f9fafb; border-bottom: 2px solid #e5e7eb; }
+          .intro p { margin: 0 0 12px 0; color: #4b5563; }
+          .content { padding: 30px 20px; }
+          .section { margin-bottom: 25px; }
+          .section-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 15px; border-bottom: 2px solid #facc15; padding-bottom: 5px; }
+          .field { margin-bottom: 12px; padding: 10px; background-color: #f9fafb; border-radius: 4px; }
+          .label { font-weight: bold; color: #1f2937; display: inline-block; min-width: 150px; }
           .value { color: #4b5563; }
-          .footer { margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb; font-size: 0.9em; color: #6b7280; }
+          .footer { margin-top: 30px; padding: 20px; background-color: #f9fafb; border-top: 2px solid #e5e7eb; font-size: 0.9em; color: #6b7280; text-align: center; }
+          .footer p { margin: 5px 0; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>BeeSoftware - Resumen de Parte</h1>
-            <h2>Parte #${parte.numero_parte}</h2>
+            <h1>MisterClima - Parte de Trabajo</h1>
+            <h2>Parte #${parte.numero_parte || parte.id}</h2>
+          </div>
+          <div class="intro">
+            <p><strong>Estimado/a cliente:</strong></p>
+            <p>Le contactamos desde el Servicio de Asistencia Técnica de MisterClima para facilitarle un resumen del parte de trabajo asociado a su intervención.</p>
+            <p>En este correo encontrará los detalles registrados por nuestro equipo (datos del equipo, población, observaciones e informe técnico, si aplica).</p>
+            <p>Si detecta cualquier error en la información o necesita aportar datos adicionales, puede responder directamente a este mensaje y lo revisaremos a la mayor brevedad.</p>
+            <p style="margin-bottom: 0;"><strong>Atentamente,</strong><br>MisterClima – Servicio de Asistencia Técnica (SAT)</p>
           </div>
           <div class="content">
-            <div class="field">
-              <span class="label">Estado:</span>
-              <span class="value">${estadoTexto}</span>
+            <!-- Información General -->
+            <div class="section">
+              <div class="section-title">📋 Información General</div>
+              <div class="field">
+                <span class="label">Estado:</span>
+                <span class="value">${estadoTexto}</span>
+              </div>
+              ${parte.numero_parte ? `
+              <div class="field">
+                <span class="label">Número de Parte:</span>
+                <span class="value">${parte.numero_parte}</span>
+              </div>
+              ` : ''}
+              <div class="field">
+                <span class="label">Fecha de Creación:</span>
+                <span class="value">${fechaCreacion}</span>
+              </div>
+              ${parte.nombre_tecnico ? `
+              <div class="field">
+                <span class="label">Técnico Asignado:</span>
+                <span class="value">${parte.nombre_tecnico}</span>
+              </div>
+              ` : ''}
             </div>
-            <div class="field">
-              <span class="label">Aparato:</span>
-              <span class="value">${parte.aparato || 'N/A'}</span>
+
+            <!-- Detalles del Servicio -->
+            <div class="section">
+              <div class="section-title">🔧 Detalles del Servicio</div>
+              ${parte.aparato ? `
+              <div class="field">
+                <span class="label">Aparato:</span>
+                <span class="value">${parte.aparato}</span>
+              </div>
+              ` : ''}
+              ${parte.poblacion ? `
+              <div class="field">
+                <span class="label">Población:</span>
+                <span class="value">${parte.poblacion}</span>
+              </div>
+              ` : ''}
+              ${parte.calle ? `
+              <div class="field">
+                <span class="label">Calle:</span>
+                <span class="value">${parte.calle}</span>
+              </div>
+              ` : ''}
+              ${parte.observaciones ? `
+              <div class="field">
+                <span class="label">Observaciones del cliente:</span>
+                <span class="value">${parte.observaciones}</span>
+              </div>
+              ` : ''}
+              ${parte.nota_parte ? `
+              <div class="field">
+                <span class="label">Nota del Parte:</span>
+                <span class="value">${parte.nota_parte}</span>
+              </div>
+              ` : ''}
             </div>
-            <div class="field">
-              <span class="label">Población:</span>
-              <span class="value">${parte.poblacion || 'N/A'}</span>
-            </div>
-            <div class="field">
-              <span class="label">Técnico asignado:</span>
-              <span class="value">${parte.nombre_tecnico || 'N/A'}</span>
-            </div>
-            ${parte.observaciones ? `
-            <div class="field">
-              <span class="label">Observaciones:</span>
-              <span class="value">${parte.observaciones}</span>
+
+            <!-- Instrucciones e Informes -->
+            ${(parte.instrucciones_recibidas || parte.instrucciones_tecnico || parte.informe_tecnico) ? `
+            <div class="section">
+              <div class="section-title">📝 Instrucciones e Informes</div>
+              ${parte.instrucciones_recibidas ? `
+              <div class="field">
+                <span class="label">Instrucciones Recibidas:</span>
+                <span class="value">${parte.instrucciones_recibidas}</span>
+              </div>
+              ` : ''}
+              ${parte.instrucciones_tecnico ? `
+              <div class="field">
+                <span class="label">Observaciones del Técnico:</span>
+                <span class="value">${parte.instrucciones_tecnico}</span>
+              </div>
+              ` : ''}
+              ${parte.informe_tecnico ? `
+              <div class="field">
+                <span class="label">Informe Técnico:</span>
+                <span class="value">${parte.informe_tecnico}</span>
+              </div>
+              ` : ''}
             </div>
             ` : ''}
-            ${parte.instrucciones_tecnico ? `
-            <div class="field">
-              <span class="label">Observaciones del técnico:</span>
-              <span class="value">${parte.instrucciones_tecnico}</span>
+
+            <!-- Datos del Cliente -->
+            ${(parte.dni_cliente || parte.cliente_telefono || parte.acepta_proteccion_datos) ? `
+            <div class="section">
+              <div class="section-title">👤 Datos del Cliente</div>
+              ${parte.dni_cliente ? `
+              <div class="field">
+                <span class="label">DNI del Cliente:</span>
+                <span class="value">${parte.dni_cliente}</span>
+              </div>
+              ` : ''}
+              ${parte.cliente_telefono ? `
+              <div class="field">
+                <span class="label">Teléfono:</span>
+                <span class="value">${parte.cliente_telefono}</span>
+              </div>
+              ` : ''}
+              ${parte.acepta_proteccion_datos !== undefined ? `
+              <div class="field">
+                <span class="label">Protección de Datos:</span>
+                <span class="value">${parte.acepta_proteccion_datos ? 'Aceptado ✓' : 'No aceptado'}</span>
+              </div>
+              ` : ''}
             </div>
             ` : ''}
-            ${parte.informe_tecnico ? `
-            <div class="field">
-              <span class="label">Informe técnico:</span>
-              <span class="value">${parte.informe_tecnico}</span>
+
+            <!-- Fotos adjuntas -->
+            ${parte.fotos_json ? (() => {
+              try {
+                const fotos = JSON.parse(parte.fotos_json);
+                if (Array.isArray(fotos) && fotos.length > 0) {
+                  return `
+            <div class="section">
+              <div class="section-title">📸 Fotos del Servicio</div>
+              <div class="field">
+                <span class="value">Se adjuntan ${fotos.length} foto(s) en este correo.</span>
+              </div>
             </div>
-            ` : ''}
-            ${parte.dni_cliente ? `
-            <div class="field">
-              <span class="label">DNI del cliente:</span>
-              <span class="value">${parte.dni_cliente}</span>
-            </div>
-            ` : ''}
+                  `;
+                }
+              } catch (e) {
+                return '';
+              }
+              return '';
+            })() : ''}
+
             <div class="footer">
-              <p>Este es un resumen automático del parte de trabajo realizado.</p>
-              <p>Si tiene alguna duda, por favor contacte con nosotros.</p>
-              <p><strong>BeeSoftware</strong> - Sistema de gestión de partes</p>
+              <p><strong>Este es un resumen automático del parte de trabajo.</strong></p>
+              <p>Si tiene alguna duda o consulta, por favor contacte con nosotros.</p>
+              <p style="margin-top: 15px;"><strong>MisterClima</strong> - Servicio técnico especializado</p>
+              <p>Email: sat@misterclima.es</p>
             </div>
           </div>
         </div>
@@ -777,54 +1053,207 @@ async function enviarEmailCliente(req, res) {
     `;
 
     const textBody = `
-BeeSoftware - Resumen de Parte
+Estimado/a cliente:
 
-Parte #${parte.numero_parte}
+Le contactamos desde el Servicio de Asistencia Técnica de MisterClima para facilitarle un resumen del parte de trabajo asociado a su intervención.
+
+En este correo encontrará los detalles registrados por nuestro equipo (datos del equipo, población, observaciones e informe técnico, si aplica).
+
+Si detecta cualquier error en la información o necesita aportar datos adicionales, puede responder directamente a este mensaje y lo revisaremos a la mayor brevedad.
+
+Atentamente,
+MisterClima – Servicio de Asistencia Técnica (SAT)
+
+═══════════════════════════════════════════════════
+MisterClima - Parte de Trabajo
+
+═══════════════════════════════════════════════════
+Parte #${parte.numero_parte || parte.id} del cliente
 Estado: ${estadoTexto}
+═══════════════════════════════════════════════════
 
-Detalles del servicio:
-- Aparato: ${parte.aparato || 'N/A'}
-- Población: ${parte.poblacion || 'N/A'}
-- Técnico asignado: ${parte.nombre_tecnico || 'N/A'}
-${parte.observaciones ? `- Observaciones: ${parte.observaciones}` : ''}
-${parte.instrucciones_tecnico ? `- Observaciones del técnico: ${parte.instrucciones_tecnico}` : ''}
-${parte.informe_tecnico ? `- Informe técnico: ${parte.informe_tecnico}` : ''}
-${parte.dni_cliente ? `- DNI del cliente: ${parte.dni_cliente}` : ''}
+📋 INFORMACIÓN GENERAL
+${parte.numero_parte ? `  • Número de Parte: ${parte.numero_parte}` : ''}
+  • Fecha de Creación: ${fechaCreacion}
+${parte.nombre_tecnico ? `  • Técnico Asignado: ${parte.nombre_tecnico}` : ''}
 
----
-Este es un resumen automático del parte de trabajo realizado.
-Si tiene alguna duda, por favor contacte con nosotros.
+🔧 DETALLES DEL SERVICIO
+${parte.aparato ? `  • Aparato: ${parte.aparato}` : ''}
+${parte.poblacion ? `  • Población: ${parte.poblacion}` : ''}
+${parte.calle ? `  • Calle: ${parte.calle}` : ''}
+${parte.observaciones ? `  • Observaciones: ${parte.observaciones}` : ''}
+${parte.nota_parte ? `  • Nota del Parte: ${parte.nota_parte}` : ''}
 
-BeeSoftware - Sistema de gestión de partes
+${(parte.instrucciones_recibidas || parte.instrucciones_tecnico || parte.informe_tecnico) ? `
+📝 INSTRUCCIONES E INFORMES
+${parte.instrucciones_recibidas ? `  • Instrucciones Recibidas: ${parte.instrucciones_recibidas}` : ''}
+${parte.instrucciones_tecnico ? `  • Observaciones del Técnico: ${parte.instrucciones_tecnico}` : ''}
+${parte.informe_tecnico ? `  • Informe Técnico: ${parte.informe_tecnico}` : ''}
+` : ''}
+
+${(parte.dni_cliente || parte.cliente_telefono || parte.acepta_proteccion_datos) ? `
+👤 DATOS DEL CLIENTE
+${parte.dni_cliente ? `  • DNI del Cliente: ${parte.dni_cliente}` : ''}
+${parte.cliente_telefono ? `  • Teléfono: ${parte.cliente_telefono}` : ''}
+${parte.acepta_proteccion_datos !== undefined ? `  • Protección de Datos: ${parte.acepta_proteccion_datos ? 'Aceptado ✓' : 'No aceptado'}` : ''}
+` : ''}
+
+${parte.fotos_json ? (() => {
+  try {
+    const fotos = JSON.parse(parte.fotos_json);
+    if (Array.isArray(fotos) && fotos.length > 0) {
+      return `
+📸 FOTOS DEL SERVICIO
+  • Se adjuntan ${fotos.length} foto(s) en este correo
+`;
+    }
+  } catch (e) {
+    return '';
+  }
+  return '';
+})() : ''}
+
+═══════════════════════════════════════════════════
+Este es un resumen automático del parte de trabajo.
+Si tiene alguna duda o consulta, contacte con nosotros.
+
+MisterClima - Servicio técnico especializado
+Email: sat@misterclima.es
+═══════════════════════════════════════════════════
     `.trim();
 
     // Enviar el email
-    const from = process.env.FROM_EMAIL || 'no-reply@beesoftware.local';
-    const info = await transporter.sendMail({
-      from,
-      to: parte.cliente_email,
-      subject,
-      text: textBody,
-      html: htmlBody,
-    });
-
-    console.log('✅ Email enviado:', info.messageId);
+    const from = config.smtp.from || 'sat@misterclima.es';
     
-    // Si es cuenta de prueba, obtener URL de vista previa
-    let previewUrl = null;
-    if (nodemailer.getTestMessageUrl) {
-      previewUrl = nodemailer.getTestMessageUrl(info);
-      if (previewUrl) {
-        console.log('📧 Vista previa del email:', previewUrl);
+    // ✅ Preparar adjuntos (fotos) si existen
+    const attachments = [];
+    if (parte.fotos_json) {
+      try {
+        const fotos = JSON.parse(parte.fotos_json);
+        if (Array.isArray(fotos) && fotos.length > 0) {
+          fotos.forEach((foto, index) => {
+            // Las fotos vienen en formato base64 con prefijo "data:image/jpeg;base64,"
+            if (foto.data && foto.data.startsWith('data:')) {
+              attachments.push({
+                filename: foto.nombre || `foto_${index + 1}.jpg`,
+                content: foto.data.split(',')[1], // Extraer solo el base64 sin el prefijo
+                encoding: 'base64',
+                cid: `foto${index + 1}` // Content-ID para usar en el HTML
+              });
+            }
+          });
+          
+          console.log(`📎 ${attachments.length} foto(s) adjunta(s) al email`);
+        }
+      } catch (parseError) {
+        console.error('⚠️ Error parseando fotos para adjuntar:', parseError.message);
+        // Continuar sin fotos en caso de error
       }
     }
+    
+    try {
+      const mailOptions = {
+        from,
+        to: parte.cliente_email.trim(),
+        subject,
+        text: textBody,
+        html: htmlBody,
+      };
+      
+      // Añadir adjuntos solo si hay fotos
+      if (attachments.length > 0) {
+        mailOptions.attachments = attachments;
+      }
+      
+      const info = await transporter.sendMail(mailOptions);
 
-    return res.status(200).json({
-      ok: true,
-      message: 'Email enviado exitosamente',
-      messageId: info.messageId,
-      previewUrl: previewUrl,
-    });
+      // Validar que el email fue aceptado
+      if (!info.accepted || info.accepted.length === 0) {
+        console.error('❌ Email rechazado por el servidor SMTP:', {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          pending: info.pending,
+        });
+        
+        return res.status(500).json({
+          ok: false,
+          message: 'El servidor SMTP rechazó el email',
+          details: info.rejected && info.rejected.length > 0 
+            ? `Destinatarios rechazados: ${info.rejected.join(', ')}`
+            : 'Email no aceptado',
+        });
+      }
+
+      console.log('✅ Email enviado exitosamente:', {
+        mode: smtpMode,
+        messageId: info.messageId,
+        to: parte.cliente_email,
+        parteId: parte.id,
+        accepted: info.accepted,
+      });
+      
+      // Si es cuenta de prueba, obtener URL de vista previa
+      let previewUrl = null;
+      if (smtpMode === 'test' && nodemailer.getTestMessageUrl) {
+        previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+          console.log('📧 Vista previa del email (cuenta de prueba):', previewUrl);
+        }
+      }
+
+      return res.status(200).json({
+        ok: true,
+        message: smtpMode === 'real' 
+          ? 'Email enviado exitosamente' 
+          : 'Email enviado a cuenta de prueba (desarrollo)',
+        messageId: info.messageId,
+        to: parte.cliente_email,
+        subject,
+        mode: smtpMode, // 'real' | 'test'
+        previewUrl: previewUrl,
+      });
+    } catch (emailError) {
+      console.error('❌ Error al enviar email:', {
+        error: emailError.message,
+        code: emailError.code,
+        responseCode: emailError.responseCode,
+        command: emailError.command,
+        parteId: parte.id,
+        to: parte.cliente_email,
+      });
+      
+      // Determinar código de error específico
+      let errorCode = 'SMTP_SEND_FAILED';
+      let errorMessage = 'Error al enviar el email';
+      
+      if (emailError.responseCode === 535 || emailError.message.includes('535')) {
+        errorCode = 'SMTP_AUTH_FAILED';
+        errorMessage = 'Error de autenticación SMTP al enviar';
+      } else if (emailError.code === 'ETIMEDOUT' || emailError.code === 'ECONNREFUSED') {
+        errorCode = 'SMTP_CONNECTION_FAILED';
+        errorMessage = 'No se pudo conectar al servidor SMTP';
+      } else if (emailError.code === 'ESOCKET') {
+        errorCode = 'SMTP_TLS_ERROR';
+        errorMessage = 'Error de conexión SSL/TLS';
+      } else if (emailError.responseCode === 550) {
+        errorCode = 'SMTP_MAILBOX_UNAVAILABLE';
+        errorMessage = 'Buzón del destinatario no disponible';
+      } else if (emailError.responseCode === 554) {
+        errorCode = 'SMTP_TRANSACTION_FAILED';
+        errorMessage = 'Transacción SMTP rechazada';
+      }
+      
+      return res.status(500).json({
+        ok: false,
+        error: errorCode,
+        message: errorMessage,
+        details: {
+          originalError: emailError.message,
+          code: emailError.code,
+          responseCode: emailError.responseCode,
+        },
+      });
+    }
   } catch (error) {
     console.error('❌ Error en enviarEmailCliente:', error.message);
     return res.status(500).json({

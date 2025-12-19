@@ -10,10 +10,10 @@ const { ESTADO_LEGACY_MAP, normalizarEstadoParte, normalizarEstadosPartes } = re
  */
 async function getAllPartes() {
   try {
-    const [rows] = await pool.query(
-      `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
+    // Intentar con campo 'calle', si falla, usar consulta sin 'calle'
+    let query = `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
-              fotos_json, firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, 
+              fotos_json, firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, 
               estado, orden, created_at, updated_at
        FROM partes
        ORDER BY 
@@ -28,8 +28,22 @@ async function getAllPartes() {
            ELSE 5
          END,
          orden ASC,
-         created_at DESC`
-    );
+         created_at DESC`;
+    
+    try {
+      // Intentar primero con el campo 'calle'
+      const queryWithCalle = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
+      const [rows] = await pool.query(queryWithCalle);
+      return normalizarEstadosPartes(rows);
+    } catch (error) {
+      // Si falla (columna no existe), usar query sin 'calle'
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        console.warn('⚠️ Campo "calle" no existe aún. Ejecuta la migración add_calle_field.sql');
+        const [rows] = await pool.query(query);
+        return normalizarEstadosPartes(rows);
+      }
+      throw error;
+    }
     
     // Normalizar estados antes de devolver
     return normalizarEstadosPartes(rows);
@@ -46,10 +60,9 @@ async function getAllPartes() {
  */
 async function getPartesByTecnico(nombreTecnico) {
   try {
-    const [rows] = await pool.query(
-      `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
+    let query = `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
-              fotos_json, firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, 
+              fotos_json, firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, 
               estado, orden, created_at, updated_at
        FROM partes
        WHERE LOWER(TRIM(nombre_tecnico)) = LOWER(TRIM(?))
@@ -65,9 +78,21 @@ async function getPartesByTecnico(nombreTecnico) {
            ELSE 5
          END,
          orden ASC,
-         created_at DESC`,
-      [nombreTecnico]
-    );
+         created_at DESC`;
+    
+    try {
+      // Intentar primero con el campo 'calle'
+      const queryWithCalle = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
+      const [rows] = await pool.query(queryWithCalle, [nombreTecnico]);
+      return normalizarEstadosPartes(rows);
+    } catch (error) {
+      // Si falla (columna no existe), usar query sin 'calle'
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        const [rows] = await pool.query(query, [nombreTecnico]);
+        return normalizarEstadosPartes(rows);
+      }
+      throw error;
+    }
     
     // Normalizar estados antes de devolver
     return normalizarEstadosPartes(rows);
@@ -84,20 +109,29 @@ async function getPartesByTecnico(nombreTecnico) {
  */
 async function getParteById(id) {
   try {
-    const [rows] = await pool.query(
-      `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
+    let query = `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
-              fotos_json, firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, 
+              fotos_json, firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, 
               estado, orden, created_at, updated_at
        FROM partes
        WHERE id = ?
-       LIMIT 1`,
-      [id]
-    );
+       LIMIT 1`;
     
-    // Normalizar estado antes de devolver
-    const parte = rows.length > 0 ? rows[0] : null;
-    return parte ? normalizarEstadoParte(parte) : null;
+    try {
+      // Intentar primero con el campo 'calle'
+      const queryWithCalle = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
+      const [rows] = await pool.query(queryWithCalle, [id]);
+      const parte = rows.length > 0 ? rows[0] : null;
+      return parte ? normalizarEstadoParte(parte) : null;
+    } catch (error) {
+      // Si falla (columna no existe), usar query sin 'calle'
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        const [rows] = await pool.query(query, [id]);
+        const parte = rows.length > 0 ? rows[0] : null;
+        return parte ? normalizarEstadoParte(parte) : null;
+      }
+      throw error;
+    }
   } catch (error) {
     console.error('❌ Error en getParteById:', error.message);
     throw new Error('Error al obtener el parte');
@@ -114,6 +148,7 @@ async function createParte(data) {
     numero_parte,
     aparato,
     poblacion,
+    calle = null,
     nombre_tecnico,
     observaciones = null,
     nota_parte = null,
@@ -123,6 +158,7 @@ async function createParte(data) {
     fotos_json = null,
     firma_base64 = null,
     cliente_email = null,
+    cliente_telefono = null,
     dni_cliente = null,
     acepta_proteccion_datos = false,
     estado = 'inicial',
@@ -136,34 +172,71 @@ async function createParte(data) {
     );
     const nuevoOrden = maxOrdenResult[0].maxOrden + 1;
 
-    const [result] = await pool.query(
-      `INSERT INTO partes 
-       (numero_parte, aparato, poblacion, nombre_tecnico, observaciones, nota_parte, 
-        instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, fotos_json, 
-        firma_base64, cliente_email, dni_cliente, acepta_proteccion_datos, estado, orden)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        numero_parte,
-        aparato,
-        poblacion,
-        nombre_tecnico,
-        observaciones,
-        nota_parte,
-        instrucciones_recibidas,
-        instrucciones_tecnico,
-        informe_tecnico,
-        fotos_json,
-        firma_base64,
-        cliente_email,
-        dni_cliente,
-        acepta_proteccion_datos,
-        estado,
-        nuevoOrden,
-      ]
-    );
+    // Intentar INSERT con campo 'calle'
+    try {
+      const [result] = await pool.query(
+        `INSERT INTO partes 
+         (numero_parte, aparato, poblacion, calle, nombre_tecnico, observaciones, nota_parte, 
+          instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, fotos_json, 
+          firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, estado, orden)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          numero_parte,
+          aparato,
+          poblacion,
+          calle,
+          nombre_tecnico,
+          observaciones,
+          nota_parte,
+          instrucciones_recibidas,
+          instrucciones_tecnico,
+          informe_tecnico,
+          fotos_json,
+          firma_base64,
+          cliente_email,
+          cliente_telefono,
+          dni_cliente,
+          acepta_proteccion_datos,
+          estado,
+          nuevoOrden,
+        ]
+      );
 
-    // Devolver el parte creado
-    return await getParteById(result.insertId);
+      return await getParteById(result.insertId);
+    } catch (error) {
+      // Si falla por campo no existente, intentar sin 'calle'
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        const [result] = await pool.query(
+          `INSERT INTO partes 
+           (numero_parte, aparato, poblacion, nombre_tecnico, observaciones, nota_parte, 
+            instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, fotos_json, 
+            firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, estado, orden)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            numero_parte,
+            aparato,
+            poblacion,
+            nombre_tecnico,
+            observaciones,
+            nota_parte,
+            instrucciones_recibidas,
+            instrucciones_tecnico,
+            informe_tecnico,
+            fotos_json,
+            firma_base64,
+            cliente_email,
+            cliente_telefono,
+            dni_cliente,
+            acepta_proteccion_datos,
+            estado,
+            nuevoOrden,
+          ]
+        );
+
+        return await getParteById(result.insertId);
+      }
+      throw error;
+    }
   } catch (error) {
     console.error('❌ Error en createParte:', error.message);
     throw new Error('Error al crear el parte');
@@ -181,6 +254,7 @@ async function updateParte(id, data) {
     numero_parte,
     aparato,
     poblacion,
+    calle,
     nombre_tecnico,
     observaciones,
     nota_parte,
@@ -190,6 +264,7 @@ async function updateParte(id, data) {
     fotos_json,
     firma_base64,
     cliente_email,
+    cliente_telefono,
     dni_cliente,
     acepta_proteccion_datos,
     estado,
@@ -197,51 +272,110 @@ async function updateParte(id, data) {
   } = data;
 
   try {
-    const [result] = await pool.query(
-      `UPDATE partes SET
-         numero_parte = COALESCE(?, numero_parte),
-         aparato = COALESCE(?, aparato),
-         poblacion = COALESCE(?, poblacion),
-         nombre_tecnico = COALESCE(?, nombre_tecnico),
-         observaciones = ?,
-         nota_parte = ?,
-         instrucciones_recibidas = ?,
-         instrucciones_tecnico = ?,
-         informe_tecnico = ?,
-         fotos_json = ?,
-         firma_base64 = ?,
-         cliente_email = ?,
-         dni_cliente = ?,
-         acepta_proteccion_datos = ?,
-         estado = COALESCE(?, estado),
-         orden = COALESCE(?, orden)
-       WHERE id = ?`,
-      [
-        numero_parte,
-        aparato,
-        poblacion,
-        nombre_tecnico,
-        observaciones,
-        nota_parte,
-        instrucciones_recibidas,
-        instrucciones_tecnico,
-        informe_tecnico,
-        fotos_json,
-        firma_base64,
-        cliente_email,
-        dni_cliente,
-        acepta_proteccion_datos,
-        estado,
-        orden,
-        id,
-      ]
-    );
+    // Intentar actualizar con campo 'calle'
+    try {
+      const [result] = await pool.query(
+        `UPDATE partes SET
+           numero_parte = COALESCE(?, numero_parte),
+           aparato = COALESCE(?, aparato),
+           poblacion = COALESCE(?, poblacion),
+           calle = ?,
+           nombre_tecnico = COALESCE(?, nombre_tecnico),
+           observaciones = ?,
+           nota_parte = ?,
+           instrucciones_recibidas = ?,
+           instrucciones_tecnico = ?,
+           informe_tecnico = ?,
+           fotos_json = ?,
+           firma_base64 = ?,
+           cliente_email = ?,
+           cliente_telefono = ?,
+           dni_cliente = ?,
+           acepta_proteccion_datos = ?,
+           estado = COALESCE(?, estado),
+           orden = COALESCE(?, orden)
+         WHERE id = ?`,
+        [
+          numero_parte,
+          aparato,
+          poblacion,
+          calle,
+          nombre_tecnico,
+          observaciones,
+          nota_parte,
+          instrucciones_recibidas,
+          instrucciones_tecnico,
+          informe_tecnico,
+          fotos_json,
+          firma_base64,
+          cliente_email,
+          cliente_telefono,
+          dni_cliente,
+          acepta_proteccion_datos,
+          estado,
+          orden,
+          id,
+        ]
+      );
 
-    if (result.affectedRows === 0) {
-      return null;
+      if (result.affectedRows === 0) {
+        return null;
+      }
+
+      return await getParteById(id);
+    } catch (error) {
+      // Si falla por campo no existente, intentar sin 'calle'
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        const [result] = await pool.query(
+          `UPDATE partes SET
+             numero_parte = COALESCE(?, numero_parte),
+             aparato = COALESCE(?, aparato),
+             poblacion = COALESCE(?, poblacion),
+             nombre_tecnico = COALESCE(?, nombre_tecnico),
+             observaciones = ?,
+             nota_parte = ?,
+             instrucciones_recibidas = ?,
+             instrucciones_tecnico = ?,
+             informe_tecnico = ?,
+             fotos_json = ?,
+             firma_base64 = ?,
+             cliente_email = ?,
+             cliente_telefono = ?,
+             dni_cliente = ?,
+             acepta_proteccion_datos = ?,
+             estado = COALESCE(?, estado),
+             orden = COALESCE(?, orden)
+           WHERE id = ?`,
+          [
+            numero_parte,
+            aparato,
+            poblacion,
+            nombre_tecnico,
+            observaciones,
+            nota_parte,
+            instrucciones_recibidas,
+            instrucciones_tecnico,
+            informe_tecnico,
+            fotos_json,
+            firma_base64,
+            cliente_email,
+            cliente_telefono,
+            dni_cliente,
+            acepta_proteccion_datos,
+            estado,
+            orden,
+            id,
+          ]
+        );
+
+        if (result.affectedRows === 0) {
+          return null;
+        }
+
+        return await getParteById(id);
+      }
+      throw error;
     }
-
-    return await getParteById(id);
   } catch (error) {
     console.error('❌ Error en updateParte:', error.message);
     throw new Error('Error al actualizar el parte');

@@ -42,10 +42,12 @@ function PartesBoard({ user, onLogout }) {
     numero_parte: '',
     aparato: '',
     poblacion: '',
+    calle: '',
     observaciones: '',
     instrucciones_tecnico: '',
     informe_tecnico: '',
     cliente_email: '',
+    cliente_telefono: '',
     nombre_tecnico: '', // Para asignación de técnico (solo admin)
     dni_cliente: '',
     acepta_proteccion_datos: false,
@@ -60,6 +62,26 @@ function PartesBoard({ user, onLogout }) {
   const [videoRef, setVideoRef] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [currentPhaseTab, setCurrentPhaseTab] = useState('inicial'); // Para navegación de fases
+
+  // ✅ Funciones utilitarias para Google Maps
+  const buildMapsQuery = (parte) => {
+    // Si tiene calle, usar "calle, poblacion", si no, solo "poblacion"
+    if (parte.calle && parte.calle.trim()) {
+      return `${parte.calle.trim()}, ${parte.poblacion.trim()}`;
+    }
+    return parte.poblacion.trim();
+  };
+
+  const openGoogleMaps = (parte, e) => {
+    // Evitar que se abra el modal de edición al clicar en población
+    e.stopPropagation();
+    
+    const query = buildMapsQuery(parte);
+    const encodedQuery = encodeURIComponent(query);
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
+    
+    window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+  };
 
   // Cargar partes al montar el componente
   useEffect(() => {
@@ -493,10 +515,12 @@ function PartesBoard({ user, onLogout }) {
         numero_parte: '',
         aparato: '',
         poblacion: '',
+        calle: '',
         observaciones: '',
         instrucciones_tecnico: '',
         informe_tecnico: '',
         cliente_email: '',
+        cliente_telefono: '',
         nombre_tecnico: '',
         dni_cliente: '',
         acepta_proteccion_datos: false,
@@ -521,10 +545,12 @@ function PartesBoard({ user, onLogout }) {
       numero_parte: '',
       aparato: '',
       poblacion: '',
+      calle: '',
       observaciones: '',
       instrucciones_tecnico: '',
       informe_tecnico: '',
       cliente_email: '',
+      cliente_telefono: '',
       nombre_tecnico: '',
       dni_cliente: '',
       acepta_proteccion_datos: false,
@@ -543,10 +569,12 @@ function PartesBoard({ user, onLogout }) {
       numero_parte: parte.numero_parte,
       aparato: parte.aparato,
       poblacion: parte.poblacion,
+      calle: parte.calle || '',
       observaciones: parte.observaciones || '',
       instrucciones_tecnico: parte.instrucciones_tecnico || '',
       informe_tecnico: parte.informe_tecnico || '',
       cliente_email: parte.cliente_email || '',
+      cliente_telefono: parte.cliente_telefono || '',
       nombre_tecnico: parte.nombre_tecnico || '',
       dni_cliente: parte.dni_cliente || '',
       acepta_proteccion_datos: parte.acepta_proteccion_datos || false,
@@ -588,6 +616,11 @@ function PartesBoard({ user, onLogout }) {
         ...formData,
         fotos_json: fotosArray.length > 0 ? JSON.stringify(fotosArray) : null,
         estado: formData.estado || selectedParte.estado, // Usar el estado del formulario si fue modificado
+        // ✅ ASEGURAR QUE SIEMPRE SE ENVÍAN ESTOS CAMPOS (INCLUSO SI SON VACÍOS)
+        calle: formData.calle || '',
+        cliente_telefono: formData.cliente_telefono || '',
+        dni_cliente: formData.dni_cliente || '',
+        acepta_proteccion_datos: formData.acepta_proteccion_datos || false,
       };
 
       const response = await fetch(`${API_BASE_URL}/api/partes/${selectedParte.id}`, {
@@ -602,26 +635,34 @@ function PartesBoard({ user, onLogout }) {
         throw new Error(data.message || 'Error al actualizar el parte');
       }
 
+      // ✅ Actualizar selectedParte con los datos guardados (importante para validaciones de email)
+      setSelectedParte(data.data);
+      
+      // ✅ Actualizar formData con los datos guardados (para reflejar cambios en el formulario)
+      setFormData({
+        numero_parte: data.data.numero_parte,
+        aparato: data.data.aparato,
+        poblacion: data.data.poblacion,
+        calle: data.data.calle || '',
+        observaciones: data.data.observaciones || '',
+        instrucciones_tecnico: data.data.instrucciones_tecnico || '',
+        informe_tecnico: data.data.informe_tecnico || '',
+        cliente_email: data.data.cliente_email || '',
+        cliente_telefono: data.data.cliente_telefono || '',
+        nombre_tecnico: data.data.nombre_tecnico || '',
+        dni_cliente: data.data.dni_cliente || '',
+        acepta_proteccion_datos: data.data.acepta_proteccion_datos || false,
+        estado: data.data.estado,
+      });
+
       await loadPartes();
 
-      setShowEditModal(false);
-      setSelectedParte(null);
-      setFormData({
-        numero_parte: '',
-        aparato: '',
-        poblacion: '',
-        observaciones: '',
-        instrucciones_tecnico: '',
-        informe_tecnico: '',
-        cliente_email: '',
-        nombre_tecnico: '',
-        dni_cliente: '',
-        acepta_proteccion_datos: false,
-        estado: '',
-      });
-      setSelectedImages([]);
-      setImagePreviews([]);
+      // ✅ NO cerrar el modal automáticamente - permitir seguir editando o enviar email
+      // El usuario puede cerrar manualmente si lo desea
       setError('');
+      
+      // Mostrar mensaje de éxito
+      alert('✅ Parte actualizado correctamente');
     } catch (err) {
       console.error('Error actualizando parte:', err);
       setError(err.message);
@@ -657,10 +698,12 @@ function PartesBoard({ user, onLogout }) {
         numero_parte: '',
         aparato: '',
         poblacion: '',
+        calle: '',
         observaciones: '',
         instrucciones_tecnico: '',
         informe_tecnico: '',
         cliente_email: '',
+        cliente_telefono: '',
         nombre_tecnico: '',
         dni_cliente: '',
         acepta_proteccion_datos: false,
@@ -677,6 +720,29 @@ function PartesBoard({ user, onLogout }) {
   };
 
   const handleEnviarEmail = async () => {
+    // ✅ VALIDACIONES OBLIGATORIAS PARA ENVIAR EMAIL (RGPD)
+    // Validar que existen todos los campos necesarios
+    const camposFaltantes = [];
+    
+    if (!selectedParte.cliente_email || !selectedParte.cliente_email.trim()) {
+      camposFaltantes.push('Email del cliente');
+    }
+    
+    if (!selectedParte.dni_cliente || !selectedParte.dni_cliente.trim()) {
+      camposFaltantes.push('DNI del cliente');
+    }
+    
+    if (!selectedParte.acepta_proteccion_datos) {
+      camposFaltantes.push('Aceptación de protección de datos (checkbox)');
+    }
+    
+    // Si faltan campos, mostrar mensaje y no permitir envío
+    if (camposFaltantes.length > 0) {
+      const mensaje = `❌ No se puede enviar el email. Faltan los siguientes datos:\n\n${camposFaltantes.map(c => `• ${c}`).join('\n')}\n\nPor favor, completa estos campos en el formulario y guarda los cambios antes de enviar el email.`;
+      alert(mensaje);
+      return;
+    }
+
     try {
       setSendingEmail(true);
       setError('');
@@ -692,18 +758,26 @@ function PartesBoard({ user, onLogout }) {
         throw new Error(data.message || 'Error al enviar el email');
       }
 
-      // Mostrar mensaje de éxito
-      alert('✅ Email enviado exitosamente al cliente');
+      // Mostrar mensaje de éxito detallado
+      alert(`✅ Email enviado exitosamente\n\nDestinatario: ${data.to}\nAsunto: ${data.subject}\nID de mensaje: ${data.messageId}`);
       
       // Si hay URL de preview (cuenta de prueba), mostrarla en consola
       if (data.previewUrl) {
-        console.log('📧 Vista previa del email:', data.previewUrl);
+        console.log('📧 Vista previa del email (cuenta de prueba):', data.previewUrl);
+        console.log('💡 Abre la URL anterior en tu navegador para ver el email enviado');
       }
 
+      console.log('✅ Email enviado correctamente:', {
+        messageId: data.messageId,
+        to: data.to,
+        subject: data.subject,
+      });
+
     } catch (err) {
-      console.error('Error enviando email:', err);
-      setError(err.message);
-      alert('❌ Error al enviar el email: ' + err.message);
+      console.error('❌ Error enviando email:', err);
+      const errorMsg = err.message || 'Error desconocido al enviar el email';
+      setError(errorMsg);
+      alert(`❌ Error al enviar el email\n\n${errorMsg}\n\nRevisa la consola para más detalles.`);
     } finally {
       setSendingEmail(false);
     }
@@ -882,7 +956,7 @@ function PartesBoard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* Fila 2: Población y Email */}
+              {/* Fila 2: Población y Calle */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="field">
                   <label htmlFor="poblacion" className="field-label">
@@ -902,6 +976,23 @@ function PartesBoard({ user, onLogout }) {
                 </div>
 
                 <div className="field">
+                  <label htmlFor="calle" className="field-label">
+                    Calle
+                  </label>
+                  <input
+                    id="calle"
+                    type="text"
+                    className="input"
+                    value={formData.calle}
+                    onChange={(e) => handleFormChange('calle', e.target.value)}
+                    placeholder="Ej. Av. XXX 12, 3ºB"
+                  />
+                </div>
+              </div>
+
+              {/* Fila 3: Email y Teléfono */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="field">
                   <label htmlFor="cliente_email" className="field-label">
                     Email CLIENTE
                   </label>
@@ -914,9 +1005,23 @@ function PartesBoard({ user, onLogout }) {
                     placeholder="cliente@ejemplo.com"
                   />
                 </div>
+
+                <div className="field">
+                  <label htmlFor="cliente_telefono" className="field-label">
+                    Teléfono Cliente
+                  </label>
+                  <input
+                    id="cliente_telefono"
+                    type="tel"
+                    className="input"
+                    value={formData.cliente_telefono}
+                    onChange={(e) => handleFormChange('cliente_telefono', e.target.value)}
+                    placeholder="Ej: +34 600 123 123"
+                  />
+                </div>
               </div>
 
-              {/* Fila 3: Selección de Técnico (solo admin) */}
+              {/* Fila 4: Selección de Técnico (solo admin) */}
               <div className="field">
                 <label htmlFor="nombre_tecnico" className="field-label">
                   Técnico Asignado <span style={{ color: '#f87171' }}>*</span>
@@ -1043,7 +1148,24 @@ function PartesBoard({ user, onLogout }) {
                                     <span className="kanban-card-number" style={{ color: column.color }}>
                                       #{parte.numero_parte}
                                     </span>
-                                    <span className="kanban-card-location-header">
+                                    <span 
+                                      className="kanban-card-location-header"
+                                      onClick={(e) => openGoogleMaps(parte, e)}
+                                      style={{ 
+                                        cursor: 'pointer',
+                                        textDecoration: 'none',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.target.style.textDecoration = 'underline';
+                                        e.target.style.color = column.color;
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.target.style.textDecoration = 'none';
+                                        e.target.style.color = '#9ca3af';
+                                      }}
+                                      title={buildMapsQuery(parte)}
+                                    >
                                       📍 {parte.poblacion}
                                     </span>
                                     {/* Mostrar nombre del técnico SOLO si es admin */}
@@ -1092,8 +1214,15 @@ function PartesBoard({ user, onLogout }) {
 
         {/* Modal de edición */}
         {showEditModal && selectedParte && (
-          <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-            <div className="auth-card modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '760px', margin: '2rem auto', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div 
+            className="modal-overlay" 
+            onClick={(e) => {
+              if (e.target.classList.contains('modal-overlay')) {
+                setShowEditModal(false);
+              }
+            }}
+          >
+            <div className="auth-card modal-content" style={{ maxWidth: '760px', margin: '2rem auto', maxHeight: '90vh', overflowY: 'auto' }}>
               <div
                 style={{
                   display: 'flex',
@@ -1162,6 +1291,22 @@ function PartesBoard({ user, onLogout }) {
                   </div>
 
                   <div className="field">
+                    <label htmlFor="edit_calle" className="field-label">
+                      Calle
+                    </label>
+                    <input
+                      id="edit_calle"
+                      type="text"
+                      className="input"
+                      value={formData.calle}
+                      onChange={(e) => handleFormChange('calle', e.target.value)}
+                      placeholder="Ej. Av. XXX 12, 3ºB"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="field">
                     <label htmlFor="edit_cliente_email" className="field-label">
                       Email Cliente
                     </label>
@@ -1172,6 +1317,20 @@ function PartesBoard({ user, onLogout }) {
                       value={formData.cliente_email}
                       onChange={(e) => handleFormChange('cliente_email', e.target.value)}
                       placeholder="cliente@ejemplo.com"
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="edit_cliente_telefono" className="field-label">
+                      Teléfono Cliente
+                    </label>
+                    <input
+                      id="edit_cliente_telefono"
+                      type="tel"
+                      className="input"
+                      value={formData.cliente_telefono}
+                      onChange={(e) => handleFormChange('cliente_telefono', e.target.value)}
+                      placeholder="Ej: +34 600 123 123"
                     />
                   </div>
                 </div>
@@ -1341,7 +1500,7 @@ function PartesBoard({ user, onLogout }) {
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   cursor: 'pointer',
-                                  fontSize: '0.75rem',
+                                  fontSize: '0.76rem',
                                   color: '#fecaca',
                                 }}
                               >
@@ -1356,7 +1515,7 @@ function PartesBoard({ user, onLogout }) {
                     {/* Campos adicionales para estado "revisando", "visitas_realizadas" y "ausentes" */}
                     <div className="field">
                       <label htmlFor="edit_dni_cliente" className="field-label">
-                        DNI del clienteee
+                        DNI del cliente
                       </label>
                       <input
                         id="edit_dni_cliente"
@@ -1379,52 +1538,72 @@ function PartesBoard({ user, onLogout }) {
                       </label>
                     </div>
 
-                    {/* Botón de enviar email - solo si está en revisando, visitas_realizadas o ausentes Y tiene email */}
-                    {formData.cliente_email && formData.cliente_email.trim() && (
-                      <div style={{ marginTop: '0.5rem' }}>
-                        <button
-                          type="button"
-                          onClick={handleEnviarEmail}
-                          disabled={sendingEmail || formLoading}
-                          className="btn"
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            fontSize: '0.95rem',
-                            fontWeight: 600,
-                            background: 'rgba(52, 211, 153, 0.1)',
-                            border: '1px solid rgba(52, 211, 153, 0.3)',
-                            color: '#6ee7b7',
-                            cursor: sendingEmail || formLoading ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {sendingEmail ? '📧 Enviando email...' : '✉️ Enviar email al cliente'}
-                        </button>
-                        <p style={{ 
-                          fontSize: '0.85rem', 
-                          color: '#9ca3af', 
-                          marginTop: '0.5rem',
-                          textAlign: 'center',
-                        }}>
-                          Se enviará a: {formData.cliente_email}
-                        </p>
-                      </div>
-                    )}
-                    {!formData.cliente_email && (
-                      <div style={{ marginTop: '0.5rem' }}>
-                        <p style={{ 
-                          fontSize: '0.85rem', 
-                          color: '#f87171', 
-                          textAlign: 'center',
-                          padding: '0.5rem',
-                          backgroundColor: 'rgba(248, 113, 113, 0.1)',
-                          borderRadius: '0.4rem',
-                          border: '1px solid rgba(248, 113, 113, 0.3)',
-                        }}>
-                          ⚠️ No se puede enviar email: el cliente no tiene email configurado
-                        </p>
-                      </div>
-                    )}
+                    {/* Botón de enviar email - solo si cumple TODOS los requisitos de RGPD */}
+                    {(() => {
+                      // Validar todas las condiciones necesarias para enviar email
+                      const tieneEmail = formData.cliente_email && formData.cliente_email.trim();
+                      const tieneDNI = formData.dni_cliente && formData.dni_cliente.trim();
+                      const aceptaProteccion = formData.acepta_proteccion_datos;
+                      
+                      const puedeEnviarEmail = tieneEmail && tieneDNI && aceptaProteccion;
+                      
+                      if (puedeEnviarEmail) {
+                        return (
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <button
+                              type="button"
+                              onClick={handleEnviarEmail}
+                              disabled={sendingEmail || formLoading}
+                              className="btn"
+                              style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                fontSize: '0.95rem',
+                                fontWeight: 600,
+                                background: 'rgba(52, 211, 153, 0.1)',
+                                border: '1px solid rgba(52, 211, 153, 0.3)',
+                                color: '#6ee7b7',
+                                cursor: sendingEmail || formLoading ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              {sendingEmail ? '📧 Enviando email...' : '✉️ Enviar email al cliente'}
+                            </button>
+                            <p style={{ 
+                              fontSize: '0.85rem', 
+                              color: '#9ca3af', 
+                              marginTop: '0.5rem',
+                              textAlign: 'center',
+                            }}>
+                              Se enviará a: {formData.cliente_email}
+                            </p>
+                          </div>
+                        );
+                      } else {
+                        // Determinar qué campos faltan
+                        const camposFaltantes = [];
+                        if (!tieneEmail) camposFaltantes.push('Email del cliente');
+                        if (!tieneDNI) camposFaltantes.push('DNI del cliente');
+                        if (!aceptaProteccion) camposFaltantes.push('Aceptación de protección de datos');
+                        
+                        return (
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <p style={{ 
+                              fontSize: '0.85rem', 
+                              color: '#f87171', 
+                              textAlign: 'center',
+                              padding: '0.75rem',
+                              backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                              borderRadius: '0.4rem',
+                              border: '1px solid rgba(248, 113, 113, 0.3)',
+                              margin: 0,
+                            }}>
+                              ⚠️ No se puede enviar email. Faltan:<br/>
+                              <strong>{camposFaltantes.join(', ')}</strong>
+                            </p>
+                          </div>
+                        );
+                      }
+                    })()}
                   </>
                 )}
 

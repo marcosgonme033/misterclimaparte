@@ -1,5 +1,6 @@
 // backend/src/config/env.js
-require('dotenv').config();
+// Config centralizada - Lee variables de entorno
+// NOTA: dotenv.config() se ejecuta en index.js antes de importar este módulo
 
 const config = {
   env: process.env.NODE_ENV || 'development',
@@ -23,6 +24,17 @@ const config = {
   jwt: {
     secret: process.env.JWT_SECRET || 'BeeSoftwareSuperSecreto123!',
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  },
+
+  // Configuración SMTP
+  smtp: {
+    host: process.env.SMTP_HOST || null,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
+    requireTLS: process.env.SMTP_REQUIRE_TLS === 'true',
+    user: process.env.SMTP_USER || null,
+    pass: process.env.SMTP_PASS || null,
+    from: process.env.SMTP_FROM || 'no-reply@beesoftware.local',
   },
 };
 
