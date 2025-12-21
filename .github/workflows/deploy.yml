@@ -43,7 +43,7 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./frontend/dist/
-          server-dir: ./
+          server-dir: ./misterclima.es/partes/
           dangerous-clean-slate: false
 
       # 5. Deploy backend
@@ -56,7 +56,7 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./backend/
-          server-dir: ./
+          server-dir: ./nodejs apps/backend/
           dangerous-clean-slate: false
           exclude: |
             node_modules/**
