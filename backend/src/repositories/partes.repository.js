@@ -31,14 +31,15 @@ async function getAllPartes() {
          created_at DESC`;
     
     try {
-      // Intentar primero con el campo 'calle'
-      const queryWithCalle = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
-      const [rows] = await pool.query(queryWithCalle);
+      // Intentar primero con los campos 'calle' y 'telefono2_cliente'
+      let queryWithExtras = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
+      queryWithExtras = queryWithExtras.replace('cliente_telefono, dni_cliente', 'cliente_telefono, telefono2_cliente, dni_cliente');
+      const [rows] = await pool.query(queryWithExtras);
       return normalizarEstadosPartes(rows);
     } catch (error) {
-      // Si falla (columna no existe), usar query sin 'calle'
+      // Si falla (columna no existe), usar query sin campos extras
       if (error.code === 'ER_BAD_FIELD_ERROR') {
-        console.warn('⚠️ Campo "calle" no existe aún. Ejecuta la migración add_calle_field.sql');
+        console.warn('⚠️ Campos opcionales "calle" o "telefono2_cliente" no existen. Ejecuta las migraciones correspondientes.');
         const [rows] = await pool.query(query);
         return normalizarEstadosPartes(rows);
       }
@@ -81,12 +82,13 @@ async function getPartesByTecnico(nombreTecnico) {
          created_at DESC`;
     
     try {
-      // Intentar primero con el campo 'calle'
-      const queryWithCalle = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
-      const [rows] = await pool.query(queryWithCalle, [nombreTecnico]);
+      // Intentar primero con los campos 'calle' y 'telefono2_cliente'
+      let queryWithExtras = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
+      queryWithExtras = queryWithExtras.replace('cliente_telefono, dni_cliente', 'cliente_telefono, telefono2_cliente, dni_cliente');
+      const [rows] = await pool.query(queryWithExtras, [nombreTecnico]);
       return normalizarEstadosPartes(rows);
     } catch (error) {
-      // Si falla (columna no existe), usar query sin 'calle'
+      // Si falla (columna no existe), usar query sin campos extras
       if (error.code === 'ER_BAD_FIELD_ERROR') {
         const [rows] = await pool.query(query, [nombreTecnico]);
         return normalizarEstadosPartes(rows);
@@ -118,13 +120,14 @@ async function getParteById(id) {
        LIMIT 1`;
     
     try {
-      // Intentar primero con el campo 'calle'
-      const queryWithCalle = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
-      const [rows] = await pool.query(queryWithCalle, [id]);
+      // Intentar primero con los campos 'calle' y 'telefono2_cliente'
+      let queryWithExtras = query.replace('poblacion, nombre_tecnico', 'poblacion, calle, nombre_tecnico');
+      queryWithExtras = queryWithExtras.replace('cliente_telefono, dni_cliente', 'cliente_telefono, telefono2_cliente, dni_cliente');
+      const [rows] = await pool.query(queryWithExtras, [id]);
       const parte = rows.length > 0 ? rows[0] : null;
       return parte ? normalizarEstadoParte(parte) : null;
     } catch (error) {
-      // Si falla (columna no existe), usar query sin 'calle'
+      // Si falla (columna no existe), usar query sin campos extras
       if (error.code === 'ER_BAD_FIELD_ERROR') {
         const [rows] = await pool.query(query, [id]);
         const parte = rows.length > 0 ? rows[0] : null;
@@ -159,6 +162,7 @@ async function createParte(data) {
     firma_base64 = null,
     cliente_email = null,
     cliente_telefono = null,
+    telefono2_cliente = null,
     dni_cliente = null,
     acepta_proteccion_datos = false,
     estado = 'inicial',
@@ -172,14 +176,14 @@ async function createParte(data) {
     );
     const nuevoOrden = maxOrdenResult[0].maxOrden + 1;
 
-    // Intentar INSERT con campo 'calle'
+    // Intentar INSERT con campos 'calle' y 'telefono2_cliente'
     try {
       const [result] = await pool.query(
         `INSERT INTO partes 
          (numero_parte, aparato, poblacion, calle, nombre_tecnico, observaciones, nota_parte, 
           instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, fotos_json, 
-          firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, estado, orden)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          firma_base64, cliente_email, cliente_telefono, telefono2_cliente, dni_cliente, acepta_proteccion_datos, estado, orden)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           numero_parte,
           aparato,
@@ -195,6 +199,7 @@ async function createParte(data) {
           firma_base64,
           cliente_email,
           cliente_telefono,
+          telefono2_cliente,
           dni_cliente,
           acepta_proteccion_datos,
           estado,
@@ -204,7 +209,7 @@ async function createParte(data) {
 
       return await getParteById(result.insertId);
     } catch (error) {
-      // Si falla por campo no existente, intentar sin 'calle'
+      // Si falla por campo no existente, intentar sin 'calle' ni 'telefono2_cliente'
       if (error.code === 'ER_BAD_FIELD_ERROR') {
         const [result] = await pool.query(
           `INSERT INTO partes 
@@ -265,6 +270,7 @@ async function updateParte(id, data) {
     firma_base64,
     cliente_email,
     cliente_telefono,
+    telefono2_cliente,
     dni_cliente,
     acepta_proteccion_datos,
     estado,
@@ -272,7 +278,7 @@ async function updateParte(id, data) {
   } = data;
 
   try {
-    // Intentar actualizar con campo 'calle'
+    // Intentar actualizar con campos 'calle' y 'telefono2_cliente'
     try {
       const [result] = await pool.query(
         `UPDATE partes SET
@@ -290,6 +296,7 @@ async function updateParte(id, data) {
            firma_base64 = ?,
            cliente_email = ?,
            cliente_telefono = ?,
+           telefono2_cliente = ?,
            dni_cliente = ?,
            acepta_proteccion_datos = ?,
            estado = COALESCE(?, estado),
@@ -310,6 +317,7 @@ async function updateParte(id, data) {
           firma_base64,
           cliente_email,
           cliente_telefono,
+          telefono2_cliente,
           dni_cliente,
           acepta_proteccion_datos,
           estado,
@@ -324,7 +332,7 @@ async function updateParte(id, data) {
 
       return await getParteById(id);
     } catch (error) {
-      // Si falla por campo no existente, intentar sin 'calle'
+      // Si falla por campo no existente, intentar sin 'calle' ni 'telefono2_cliente'
       if (error.code === 'ER_BAD_FIELD_ERROR') {
         const [result] = await pool.query(
           `UPDATE partes SET

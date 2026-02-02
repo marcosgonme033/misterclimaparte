@@ -48,6 +48,7 @@ function PartesBoard({ user, onLogout }) {
     informe_tecnico: '',
     cliente_email: '',
     cliente_telefono: '',
+    telefono2_cliente: '',
     nombre_tecnico: '', // Para asignación de técnico (solo admin)
     dni_cliente: '',
     acepta_proteccion_datos: false,
@@ -521,6 +522,7 @@ function PartesBoard({ user, onLogout }) {
         informe_tecnico: '',
         cliente_email: '',
         cliente_telefono: '',
+        telefono2_cliente: '',
         nombre_tecnico: '',
         dni_cliente: '',
         acepta_proteccion_datos: false,
@@ -551,6 +553,7 @@ function PartesBoard({ user, onLogout }) {
       informe_tecnico: '',
       cliente_email: '',
       cliente_telefono: '',
+      telefono2_cliente: '',
       nombre_tecnico: '',
       dni_cliente: '',
       acepta_proteccion_datos: false,
@@ -575,6 +578,7 @@ function PartesBoard({ user, onLogout }) {
       informe_tecnico: parte.informe_tecnico || '',
       cliente_email: parte.cliente_email || '',
       cliente_telefono: parte.cliente_telefono || '',
+      telefono2_cliente: parte.telefono2_cliente || '',
       nombre_tecnico: parte.nombre_tecnico || '',
       dni_cliente: parte.dni_cliente || '',
       acepta_proteccion_datos: parte.acepta_proteccion_datos || false,
@@ -619,6 +623,7 @@ function PartesBoard({ user, onLogout }) {
         // ✅ ASEGURAR QUE SIEMPRE SE ENVÍAN ESTOS CAMPOS (INCLUSO SI SON VACÍOS)
         calle: formData.calle || '',
         cliente_telefono: formData.cliente_telefono || '',
+        telefono2_cliente: formData.telefono2_cliente || '',
         dni_cliente: formData.dni_cliente || '',
         acepta_proteccion_datos: formData.acepta_proteccion_datos || false,
       };
@@ -649,6 +654,7 @@ function PartesBoard({ user, onLogout }) {
         informe_tecnico: data.data.informe_tecnico || '',
         cliente_email: data.data.cliente_email || '',
         cliente_telefono: data.data.cliente_telefono || '',
+        telefono2_cliente: data.data.telefono2_cliente || '',
         nombre_tecnico: data.data.nombre_tecnico || '',
         dni_cliente: data.data.dni_cliente || '',
         acepta_proteccion_datos: data.data.acepta_proteccion_datos || false,
@@ -704,6 +710,7 @@ function PartesBoard({ user, onLogout }) {
         informe_tecnico: '',
         cliente_email: '',
         cliente_telefono: '',
+        telefono2_cliente: '',
         nombre_tecnico: '',
         dni_cliente: '',
         acepta_proteccion_datos: false,
@@ -990,8 +997,8 @@ function PartesBoard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* Fila 3: Email y Teléfono */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* Fila 3: Email y Teléfonos */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                 <div className="field">
                   <label htmlFor="cliente_email" className="field-label">
                     Email CLIENTE
@@ -1008,7 +1015,7 @@ function PartesBoard({ user, onLogout }) {
 
                 <div className="field">
                   <label htmlFor="cliente_telefono" className="field-label">
-                    Teléfono Cliente
+                    Teléfono 1
                   </label>
                   <input
                     id="cliente_telefono"
@@ -1017,6 +1024,20 @@ function PartesBoard({ user, onLogout }) {
                     value={formData.cliente_telefono}
                     onChange={(e) => handleFormChange('cliente_telefono', e.target.value)}
                     placeholder="Ej: +34 600 123 123"
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor="telefono2_cliente" className="field-label">
+                    Teléfono 2
+                  </label>
+                  <input
+                    id="telefono2_cliente"
+                    type="tel"
+                    className="input"
+                    value={formData.telefono2_cliente}
+                    onChange={(e) => handleFormChange('telefono2_cliente', e.target.value)}
+                    placeholder="Ej: +34 600 456 456"
                   />
                 </div>
               </div>
@@ -1305,7 +1326,7 @@ function PartesBoard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                   <div className="field">
                     <label htmlFor="edit_cliente_email" className="field-label">
                       Email Cliente
@@ -1322,7 +1343,7 @@ function PartesBoard({ user, onLogout }) {
 
                   <div className="field">
                     <label htmlFor="edit_cliente_telefono" className="field-label">
-                      Teléfono Cliente
+                      Teléfono 1
                     </label>
                     <input
                       id="edit_cliente_telefono"
@@ -1331,6 +1352,20 @@ function PartesBoard({ user, onLogout }) {
                       value={formData.cliente_telefono}
                       onChange={(e) => handleFormChange('cliente_telefono', e.target.value)}
                       placeholder="Ej: +34 600 123 123"
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="edit_telefono2_cliente" className="field-label">
+                      Teléfono 2
+                    </label>
+                    <input
+                      id="edit_telefono2_cliente"
+                      type="tel"
+                      className="input"
+                      value={formData.telefono2_cliente}
+                      onChange={(e) => handleFormChange('telefono2_cliente', e.target.value)}
+                      placeholder="Ej: +34 600 456 456"
                     />
                   </div>
                 </div>

@@ -434,6 +434,7 @@ async function updateParte(req, res) {
       observaciones,
       cliente_email,
       cliente_telefono,
+      telefono2_cliente,
       dni_cliente,
       acepta_proteccion_datos,
       instrucciones_tecnico,
@@ -504,6 +505,7 @@ async function updateParte(req, res) {
       observaciones: observaciones !== undefined ? observaciones : parteExistente.observaciones,
       cliente_email: cliente_email !== undefined ? cliente_email : parteExistente.cliente_email,
       cliente_telefono: cliente_telefono !== undefined ? (cliente_telefono ? cliente_telefono.trim().replace(/\s+/g, ' ') : null) : parteExistente.cliente_telefono,
+      telefono2_cliente: telefono2_cliente !== undefined ? (telefono2_cliente ? telefono2_cliente.trim().replace(/\s+/g, ' ') : null) : parteExistente.telefono2_cliente,
       dni_cliente: dni_cliente !== undefined ? dni_cliente : parteExistente.dni_cliente,
       acepta_proteccion_datos: acepta_proteccion_datos !== undefined ? acepta_proteccion_datos : parteExistente.acepta_proteccion_datos,
     };
@@ -996,7 +998,7 @@ async function enviarEmailCliente(req, res) {
             ` : ''}
 
             <!-- Datos del Cliente -->
-            ${(parte.dni_cliente || parte.cliente_telefono || parte.acepta_proteccion_datos) ? `
+            ${(parte.dni_cliente || parte.cliente_telefono || parte.telefono2_cliente || parte.acepta_proteccion_datos) ? `
             <div class="section">
               <div class="section-title">👤 Datos del Cliente</div>
               ${parte.dni_cliente ? `
@@ -1007,8 +1009,14 @@ async function enviarEmailCliente(req, res) {
               ` : ''}
               ${parte.cliente_telefono ? `
               <div class="field">
-                <span class="label">Teléfono:</span>
+                <span class="label">Teléfono 1:</span>
                 <span class="value">${parte.cliente_telefono}</span>
+              </div>
+              ` : ''}
+              ${parte.telefono2_cliente ? `
+              <div class="field">
+                <span class="label">Teléfono 2:</span>
+                <span class="value">${parte.telefono2_cliente}</span>
               </div>
               ` : ''}
               ${parte.acepta_proteccion_datos !== undefined ? `
@@ -1091,10 +1099,11 @@ ${parte.instrucciones_tecnico ? `  • Observaciones del Técnico: ${parte.instr
 ${parte.informe_tecnico ? `  • Informe Técnico: ${parte.informe_tecnico}` : ''}
 ` : ''}
 
-${(parte.dni_cliente || parte.cliente_telefono || parte.acepta_proteccion_datos) ? `
+${(parte.dni_cliente || parte.cliente_telefono || parte.telefono2_cliente || parte.acepta_proteccion_datos) ? `
 👤 DATOS DEL CLIENTE
 ${parte.dni_cliente ? `  • DNI del Cliente: ${parte.dni_cliente}` : ''}
-${parte.cliente_telefono ? `  • Teléfono: ${parte.cliente_telefono}` : ''}
+${parte.cliente_telefono ? `  • Teléfono 1: ${parte.cliente_telefono}` : ''}
+${parte.telefono2_cliente ? `  • Teléfono 2: ${parte.telefono2_cliente}` : ''}
 ${parte.acepta_proteccion_datos !== undefined ? `  • Protección de Datos: ${parte.acepta_proteccion_datos ? 'Aceptado ✓' : 'No aceptado'}` : ''}
 ` : ''}
 
