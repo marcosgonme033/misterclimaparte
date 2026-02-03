@@ -2,8 +2,7 @@
 import { useState, useEffect } from 'react';
 import PartesBoard from './PartesBoard';
 import logoLogin from './assets/logo_MrClim.jpeg';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_BASE_URL } from './config/api';
 
 // Constantes para la gestión de sesión
 const SESSION_STORAGE_KEY = 'beesoftware_session';
