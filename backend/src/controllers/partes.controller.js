@@ -352,6 +352,8 @@ async function createParte(req, res) {
     // Crear el parte con estado inicial (solo campos permitidos en estado inicial)
     const parteData = {
       numero_parte,
+      nombre_cliente: req.body.nombre_cliente || null,
+      fecha_parte: req.body.fecha_parte || null,
       aparato: aparato.trim(),
       poblacion: poblacion.trim(),
       nombre_tecnico: nombre_tecnico.trim(),
@@ -499,6 +501,8 @@ async function updateParte(req, res) {
     // IMPORTANTE: Preservar campos existentes del parteExistente si no vienen en el body
     const updateData = {
       numero_parte: numero_parte !== undefined ? numero_parte : parteExistente.numero_parte,
+      nombre_cliente: req.body.nombre_cliente !== undefined ? req.body.nombre_cliente : parteExistente.nombre_cliente,
+      fecha_parte: req.body.fecha_parte !== undefined ? req.body.fecha_parte : parteExistente.fecha_parte,
       aparato: aparato !== undefined ? aparato : parteExistente.aparato,
       poblacion: poblacion !== undefined ? poblacion : parteExistente.poblacion,
       calle: calle !== undefined ? calle : parteExistente.calle,

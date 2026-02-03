@@ -40,6 +40,8 @@ function PartesBoard({ user, onLogout }) {
   // Estado del formulario
   const [formData, setFormData] = useState({
     numero_parte: '',
+    nombre_cliente: '',
+    fecha_parte: '',
     aparato: '',
     poblacion: '',
     calle: '',
@@ -514,6 +516,8 @@ function PartesBoard({ user, onLogout }) {
       // Resetear formulario
       setFormData({
         numero_parte: '',
+        nombre_cliente: '',
+        fecha_parte: '',
         aparato: '',
         poblacion: '',
         calle: '',
@@ -545,6 +549,8 @@ function PartesBoard({ user, onLogout }) {
     setShowNewParteForm(false);
     setFormData({
       numero_parte: '',
+      nombre_cliente: '',
+      fecha_parte: '',
       aparato: '',
       poblacion: '',
       calle: '',
@@ -570,6 +576,8 @@ function PartesBoard({ user, onLogout }) {
     setCurrentPhaseTab(parte.estado); // Establecer el tab activo según el estado actual
     setFormData({
       numero_parte: parte.numero_parte,
+      nombre_cliente: parte.nombre_cliente || '',
+      fecha_parte: parte.fecha_parte || '',
       aparato: parte.aparato,
       poblacion: parte.poblacion,
       calle: parte.calle || '',
@@ -702,6 +710,8 @@ function PartesBoard({ user, onLogout }) {
       setSelectedParte(null);
       setFormData({
         numero_parte: '',
+        nombre_cliente: '',
+        fecha_parte: '',
         aparato: '',
         poblacion: '',
         calle: '',
@@ -925,8 +935,8 @@ function PartesBoard({ user, onLogout }) {
             </div>
 
             <form className="auth-form" onSubmit={handleSubmitNuevoParte} style={{ gap: '1.1rem' }}>
-              {/* Fila 1: Número de parte y Aparato */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+              {/* Fila 1: Número de parte, Nombre del cliente y Fecha */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: '1rem' }}>
                 <div className="field">
                   <label htmlFor="numero_parte" className="field-label">
                     Nº Parte <span style={{ color: '#f87171' }}>*</span>
@@ -946,24 +956,52 @@ function PartesBoard({ user, onLogout }) {
                 </div>
 
                 <div className="field">
-                  <label htmlFor="aparato" className="field-label">
-                    Aparato <span style={{ color: '#f87171' }}>*</span>
+                  <label htmlFor="nombre_cliente" className="field-label">
+                    Nombre del Cliente
                   </label>
                   <input
-                    id="aparato"
+                    id="nombre_cliente"
                     type="text"
-                    className={formErrors.aparato ? 'input input--error' : 'input'}
-                    value={formData.aparato}
-                    onChange={(e) => handleFormChange('aparato', e.target.value)}
-                    placeholder="Ej. Aire Acondicionado Split"
+                    className="input"
+                    value={formData.nombre_cliente}
+                    onChange={(e) => handleFormChange('nombre_cliente', e.target.value)}
+                    placeholder="Ej. Juan Pérez"
                   />
-                  {formErrors.aparato && (
-                    <p className="field-error">{formErrors.aparato}</p>
-                  )}
+                </div>
+
+                <div className="field">
+                  <label htmlFor="fecha_parte" className="field-label">
+                    Fecha del Parte
+                  </label>
+                  <input
+                    id="fecha_parte"
+                    type="date"
+                    className="input"
+                    value={formData.fecha_parte}
+                    onChange={(e) => handleFormChange('fecha_parte', e.target.value)}
+                  />
                 </div>
               </div>
 
-              {/* Fila 2: Población y Calle */}
+              {/* Fila 2: Aparato */}
+              <div className="field">
+                <label htmlFor="aparato" className="field-label">
+                  Aparato <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <input
+                  id="aparato"
+                  type="text"
+                  className={formErrors.aparato ? 'input input--error' : 'input'}
+                  value={formData.aparato}
+                  onChange={(e) => handleFormChange('aparato', e.target.value)}
+                  placeholder="Ej. Aire Acondicionado Split"
+                />
+                {formErrors.aparato && (
+                  <p className="field-error">{formErrors.aparato}</p>
+                )}
+              </div>
+
+              {/* Fila 3: Población y Calle */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="field">
                   <label htmlFor="poblacion" className="field-label">
@@ -1169,6 +1207,16 @@ function PartesBoard({ user, onLogout }) {
                                     <span className="kanban-card-number" style={{ color: column.color }}>
                                       #{parte.numero_parte}
                                     </span>
+                                    {parte.nombre_cliente && (
+                                      <span className="kanban-card-tech" style={{ fontSize: '0.75rem' }}>
+                                        👤 {parte.nombre_cliente}
+                                      </span>
+                                    )}
+                                    {parte.fecha_parte && (
+                                      <span className="kanban-card-tech" style={{ fontSize: '0.75rem' }}>
+                                        📅 {new Date(parte.fecha_parte).toLocaleDateString('es-ES')}
+                                      </span>
+                                    )}
                                     <span 
                                       className="kanban-card-location-header"
                                       onClick={(e) => openGoogleMaps(parte, e)}
@@ -1192,7 +1240,7 @@ function PartesBoard({ user, onLogout }) {
                                     {/* Mostrar nombre del técnico SOLO si es admin */}
                                     {user.role === 'admin' && parte.nombre_tecnico && (
                                       <span className="kanban-card-tech">
-                                        👤 {parte.nombre_tecnico}
+                                        🔧 {parte.nombre_tecnico}
                                       </span>
                                     )}
                                   </div>
@@ -1262,7 +1310,7 @@ function PartesBoard({ user, onLogout }) {
 
               <form className="auth-form" onSubmit={handleUpdateParte} style={{ gap: '1.1rem' }}>
                 {/* Mismo formulario que crear parte pero con ID del parte y botones diferentes */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: '1rem' }}>
                   <div className="field">
                     <label htmlFor="edit_numero_parte" className="field-label">
                       Nº Parte <span style={{ color: '#f87171' }}>*</span>
@@ -1280,19 +1328,46 @@ function PartesBoard({ user, onLogout }) {
                   </div>
 
                   <div className="field">
-                    <label htmlFor="edit_aparato" className="field-label">
-                      Aparato <span style={{ color: '#f87171' }}>*</span>
+                    <label htmlFor="edit_nombre_cliente" className="field-label">
+                      Nombre del Cliente
                     </label>
                     <input
-                      id="edit_aparato"
+                      id="edit_nombre_cliente"
                       type="text"
-                      className={formErrors.aparato ? 'input input--error' : 'input'}
-                      value={formData.aparato}
-                      onChange={(e) => handleFormChange('aparato', e.target.value)}
-                      placeholder="Ej. Aire Acondicionado Split"
+                      className="input"
+                      value={formData.nombre_cliente}
+                      onChange={(e) => handleFormChange('nombre_cliente', e.target.value)}
+                      placeholder="Ej. Juan Pérez"
                     />
-                    {formErrors.aparato && <p className="field-error">{formErrors.aparato}</p>}
                   </div>
+
+                  <div className="field">
+                    <label htmlFor="edit_fecha_parte" className="field-label">
+                      Fecha del Parte
+                    </label>
+                    <input
+                      id="edit_fecha_parte"
+                      type="date"
+                      className="input"
+                      value={formData.fecha_parte}
+                      onChange={(e) => handleFormChange('fecha_parte', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="edit_aparato" className="field-label">
+                    Aparato <span style={{ color: '#f87171' }}>*</span>
+                  </label>
+                  <input
+                    id="edit_aparato"
+                    type="text"
+                    className={formErrors.aparato ? 'input input--error' : 'input'}
+                    value={formData.aparato}
+                    onChange={(e) => handleFormChange('aparato', e.target.value)}
+                    placeholder="Ej. Aire Acondicionado Split"
+                  />
+                  {formErrors.aparato && <p className="field-error">{formErrors.aparato}</p>}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

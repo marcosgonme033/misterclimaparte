@@ -11,7 +11,7 @@ const { ESTADO_LEGACY_MAP, normalizarEstadoParte, normalizarEstadosPartes } = re
 async function getAllPartes() {
   try {
     // Intentar con campo 'calle', si falla, usar consulta sin 'calle'
-    let query = `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
+    let query = `SELECT id, numero_parte, nombre_cliente, fecha_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
               fotos_json, firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, 
               estado, orden, created_at, updated_at
@@ -61,7 +61,7 @@ async function getAllPartes() {
  */
 async function getPartesByTecnico(nombreTecnico) {
   try {
-    let query = `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
+    let query = `SELECT id, numero_parte, nombre_cliente, fecha_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
               fotos_json, firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, 
               estado, orden, created_at, updated_at
@@ -111,7 +111,7 @@ async function getPartesByTecnico(nombreTecnico) {
  */
 async function getParteById(id) {
   try {
-    let query = `SELECT id, numero_parte, aparato, poblacion, nombre_tecnico, observaciones, 
+    let query = `SELECT id, numero_parte, nombre_cliente, fecha_parte, aparato, poblacion, nombre_tecnico, observaciones, 
               nota_parte, instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, 
               fotos_json, firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, 
               estado, orden, created_at, updated_at
@@ -149,6 +149,8 @@ async function getParteById(id) {
 async function createParte(data) {
   const {
     numero_parte,
+    nombre_cliente = null,
+    fecha_parte = null,
     aparato,
     poblacion,
     calle = null,
@@ -180,12 +182,14 @@ async function createParte(data) {
     try {
       const [result] = await pool.query(
         `INSERT INTO partes 
-         (numero_parte, aparato, poblacion, calle, nombre_tecnico, observaciones, nota_parte, 
+         (numero_parte, nombre_cliente, fecha_parte, aparato, poblacion, calle, nombre_tecnico, observaciones, nota_parte, 
           instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, fotos_json, 
           firma_base64, cliente_email, cliente_telefono, telefono2_cliente, dni_cliente, acepta_proteccion_datos, estado, orden)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           numero_parte,
+          nombre_cliente,
+          fecha_parte,
           aparato,
           poblacion,
           calle,
@@ -213,12 +217,14 @@ async function createParte(data) {
       if (error.code === 'ER_BAD_FIELD_ERROR') {
         const [result] = await pool.query(
           `INSERT INTO partes 
-           (numero_parte, aparato, poblacion, nombre_tecnico, observaciones, nota_parte, 
+           (numero_parte, nombre_cliente, fecha_parte, aparato, poblacion, nombre_tecnico, observaciones, nota_parte, 
             instrucciones_recibidas, instrucciones_tecnico, informe_tecnico, fotos_json, 
             firma_base64, cliente_email, cliente_telefono, dni_cliente, acepta_proteccion_datos, estado, orden)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             numero_parte,
+            nombre_cliente,
+            fecha_parte,
             aparato,
             poblacion,
             nombre_tecnico,
@@ -257,6 +263,8 @@ async function createParte(data) {
 async function updateParte(id, data) {
   const {
     numero_parte,
+    nombre_cliente,
+    fecha_parte,
     aparato,
     poblacion,
     calle,
@@ -283,6 +291,8 @@ async function updateParte(id, data) {
       const [result] = await pool.query(
         `UPDATE partes SET
            numero_parte = COALESCE(?, numero_parte),
+           nombre_cliente = ?,
+           fecha_parte = ?,
            aparato = COALESCE(?, aparato),
            poblacion = COALESCE(?, poblacion),
            calle = ?,
@@ -304,6 +314,8 @@ async function updateParte(id, data) {
          WHERE id = ?`,
         [
           numero_parte,
+          nombre_cliente,
+          fecha_parte,
           aparato,
           poblacion,
           calle,
@@ -337,6 +349,8 @@ async function updateParte(id, data) {
         const [result] = await pool.query(
           `UPDATE partes SET
              numero_parte = COALESCE(?, numero_parte),
+             nombre_cliente = ?,
+             fecha_parte = ?,
              aparato = COALESCE(?, aparato),
              poblacion = COALESCE(?, poblacion),
              nombre_tecnico = COALESCE(?, nombre_tecnico),
@@ -356,6 +370,8 @@ async function updateParte(id, data) {
            WHERE id = ?`,
           [
             numero_parte,
+            nombre_cliente,
+            fecha_parte,
             aparato,
             poblacion,
             nombre_tecnico,
