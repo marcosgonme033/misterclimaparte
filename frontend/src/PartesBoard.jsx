@@ -2,9 +2,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import logoApp from './assets/logo-beesoftware.jpeg';
+import { API_BASE_URL, getAuthHeaders } from './config/api';
 
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // Definición de columnas del tablero Kanban (NUEVOS ESTADOS)
 const COLUMNS = [
@@ -106,12 +105,8 @@ function PartesBoard({ user, onLogout }) {
     };
   }, [user]); // Dependencia de user para recrear el intervalo si cambia
 
-  // Helper para headers de autenticación
-  const getAuthHeaders = () => ({
-    'Authorization': `Bearer fake-jwt-token-beesoftware`,
-    'x-user': JSON.stringify(user),
-    'Content-Type': 'application/json'
-  });
+  // Helper para headers de autenticación (usa la función importada)
+  const getAuthHeadersWithUser = () => getAuthHeaders(user);
 
   // Cargar lista de técnicos (solo para admin)
   const loadTecnicos = async () => {
@@ -119,7 +114,7 @@ function PartesBoard({ user, onLogout }) {
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/partes/tecnicos`, {
-        headers: getAuthHeaders()
+        headers: getAuthHeadersWithUser()
       });
       
       const data = await response.json();
@@ -154,7 +149,7 @@ function PartesBoard({ user, onLogout }) {
       }
 
       const response = await fetch(url, {
-        headers: getAuthHeaders()
+        headers: getAuthHeadersWithUser()
       });
 
       const data = await response.json();
@@ -270,7 +265,7 @@ function PartesBoard({ user, onLogout }) {
         // Enviar al backend
         const response = await fetch(`${API_BASE_URL}/api/partes/orden`, {
           method: 'PUT',
-          headers: getAuthHeaders(),
+          headers: getAuthHeadersWithUser(),
           body: JSON.stringify({ updates: ordenUpdates }),
         });
         
@@ -312,7 +307,7 @@ function PartesBoard({ user, onLogout }) {
       // Actualizar en el backend enviando todos los campos para evitar pérdida de datos
       const response = await fetch(`${API_BASE_URL}/api/partes/${parteId}`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: getAuthHeadersWithUser(),
         body: JSON.stringify({
           ...parteCompleto,
           estado: newEstado
@@ -492,7 +487,7 @@ function PartesBoard({ user, onLogout }) {
 
       const response = await fetch(`${API_BASE_URL}/api/partes`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: getAuthHeadersWithUser(),
         body: JSON.stringify(parteData),
       });
 
@@ -638,7 +633,7 @@ function PartesBoard({ user, onLogout }) {
 
       const response = await fetch(`${API_BASE_URL}/api/partes/${selectedParte.id}`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: getAuthHeadersWithUser(),
         body: JSON.stringify(parteData),
       });
 
@@ -695,7 +690,7 @@ function PartesBoard({ user, onLogout }) {
 
       const response = await fetch(`${API_BASE_URL}/api/partes/${selectedParte.id}`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
+        headers: getAuthHeadersWithUser(),
       });
 
       const data = await response.json();
@@ -766,7 +761,7 @@ function PartesBoard({ user, onLogout }) {
 
       const response = await fetch(`${API_BASE_URL}/api/partes/${selectedParte.id}/enviar-email`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: getAuthHeadersWithUser(),
       });
 
       const data = await response.json();
