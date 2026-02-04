@@ -29,16 +29,62 @@ app.use((req, res, next) => {
 // ==========================
 // CONFIGURACIÓN CORS
 // ==========================
-const allowedOrigins = [
+
+// Lista cerrada de orígenes exactos permitidos
+const allowedExactOrigins = new Set([
   'http://localhost:5173',
   'http://localhost:3000',
   'https://misterclima.es',
   'https://www.misterclima.es',
+  'http://misterclima.es',
+  'http://www.misterclima.es',
   'https://api.misterclima.es'
-];
+]);
+
+/**
+ * Función para verificar si un origin está permitido
+ * Permite:
+ * - Requests sin Origin (health checks, server-to-server)
+ * - Orígenes exactos en la lista allowedExactOrigins
+ * - Cualquier subdominio de misterclima.es (http o https)
+ */
+function isAllowedOrigin(origin) {
+  // Permitir requests sin Origin (health checks, Postman, etc.)
+  if (!origin) return true;
+
+  // Verificar si está en la lista exacta
+  if (allowedExactOrigins.has(origin)) return true;
+
+  // Verificar subdominios de misterclima.es
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    const protocol = url.protocol;
+
+    // Solo permitir http: o https:
+    if (protocol !== 'http:' && protocol !== 'https:') return false;
+
+    // Permitir misterclima.es y cualquier subdominio
+    if (hostname === 'misterclima.es' || hostname.endsWith('.misterclima.es')) {
+      return true;
+    }
+  } catch (err) {
+    // Si no es una URL válida, rechazar
+    return false;
+  }
+
+  return false;
+}
 
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+    } else {
+      console.warn('⚠️  CORS blocked origin:', origin);
+      callback(new Error(`CORS bloqueado para origin: ${origin}`), false);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user', 'X-Requested-With'],
@@ -53,6 +99,19 @@ app.options('*', cors(corsOptions)); // Habilitar pre-flight para todas las ruta
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ==========================
+// HEALTH CHECK ENDPOINT
+// ==========================
+// Endpoint simple para verificar que el servidor está activo
+// Útil para debugging desde móvil y health checks
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    ok: true, 
+    ts: Date.now(),
+    message: 'BeeSoftware API is running'
+  });
+});
 
 // ==========================
 // DEMO AUTH EN MEMORIA
