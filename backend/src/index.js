@@ -1,5 +1,7 @@
 // BeeSoftware/backend/src/index.js
 // API de autenticación + conexión a BD para BeeSoftware - VERSIÓN PRODUCCIÓN
+console.log("✅ RUNNING CODE: BUILD 2026-02-04 /api/health should exist");
+
 
 // ⚠️ IMPORTANTE: Cargar dotenv ANTES de importar cualquier módulo que lea process.env
 require('dotenv').config();
